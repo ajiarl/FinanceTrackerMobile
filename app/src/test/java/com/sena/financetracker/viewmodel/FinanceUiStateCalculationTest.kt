@@ -1,5 +1,7 @@
 package com.sena.financetracker.viewmodel
 
+import com.sena.financetracker.data.AccountEntity
+import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.TransactionEntity
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -29,5 +31,38 @@ class FinanceUiStateCalculationTest {
         assertEquals(12500000.0, state.totalIncome, 0.001)
         assertEquals(75000.0, state.totalExpense, 0.001)
         assertEquals(12425000.0, state.totalBalance, 0.001)
+    }
+
+    @Test
+    fun testAccountsBalanceCalculation() {
+        val accounts = listOf(
+            AccountEntity(id = 1, name = "Dompet Tunai", type = "cash", balance = 500000.0),
+            AccountEntity(id = 2, name = "BCA", type = "bank", balance = 5000000.0),
+            AccountEntity(id = 3, name = "GoPay", type = "e-wallet", balance = 250000.0)
+        )
+        val transactions = listOf(
+            TransactionEntity(id = 1, title = "Makan", amount = 50000.0, type = "EXPENSE", category = "Makanan", date = "2026-10-01")
+        )
+
+        val state = calculateFinanceTotals(transactions, accounts)
+
+        // totalBalance should sum the account balances when accounts exist
+        assertEquals(5750000.0, state.totalBalance, 0.001)
+        assertEquals(0.0, state.totalIncome, 0.001)
+        assertEquals(50000.0, state.totalExpense, 0.001)
+        assertEquals(3, state.accounts.size)
+    }
+
+    @Test
+    fun testCategoriesIntegration() {
+        val categories = listOf(
+            CategoryEntity(id = 1, name = "Makanan & Minuman", type = "EXPENSE", color = "#F97316"),
+            CategoryEntity(id = 2, name = "Gaji", type = "INCOME", color = "#22C55E")
+        )
+        val state = calculateFinanceTotals(emptyList(), emptyList(), categories)
+
+        assertEquals(2, state.categories.size)
+        assertEquals("Makanan & Minuman", state.categories[0].name)
+        assertEquals("Gaji", state.categories[1].name)
     }
 }

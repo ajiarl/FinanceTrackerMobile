@@ -8,6 +8,7 @@ import com.sena.financetracker.repository.TransactionRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 class FinanceViewModel(
@@ -18,14 +19,19 @@ class FinanceViewModel(
     val uiState: StateFlow<FinanceUiState> = _uiState.asStateFlow()
 
     init {
-        observeTransactions()
+        observeData()
     }
 
-    private fun observeTransactions() {
+    private fun observeData() {
         viewModelScope.launch {
-            repository.getAllTransactions().collect { list ->
-                val calculated = calculateFinanceTotals(list)
-                _uiState.value = calculated.copy(isLoading = false)
+            combine(
+                repository.getAllTransactions(),
+                repository.getAllAccounts(),
+                repository.getAllCategories()
+            ) { transactions, accounts, categories ->
+                calculateFinanceTotals(transactions, accounts, categories).copy(isLoading = false)
+            }.collect { newState ->
+                _uiState.value = newState
             }
         }
     }
@@ -35,7 +41,10 @@ class FinanceViewModel(
         amount: Double,
         type: String,
         category: String,
-        date: String
+        date: String,
+        accountId: Long = 1,
+        accountName: String = "Dompet Tunai",
+        notes: String = ""
     ) {
         viewModelScope.launch {
             val entity = TransactionEntity(
@@ -43,15 +52,29 @@ class FinanceViewModel(
                 amount = amount,
                 type = type.trim().uppercase(),
                 category = category.trim(),
-                date = date.trim()
+                date = date.trim(),
+                accountId = accountId,
+                accountName = accountName.trim(),
+                notes = notes.trim()
             )
             repository.insertTransaction(entity)
         }
     }
 
+    fun deleteTransaction(transaction: TransactionEntity) {
+        viewModelScope.launch {
+            repository.deleteTransaction(transaction)
+        }
+    }
+
     fun deleteTransaction(id: Long) {
         viewModelScope.launch {
-            repository.deleteTransaction(id)
+            val tx = _uiState.value.transactions.find { it.id == id }
+            if (tx != null) {
+                repository.deleteTransaction(tx)
+            } else {
+                repository.deleteTransaction(id)
+            }
         }
     }
 

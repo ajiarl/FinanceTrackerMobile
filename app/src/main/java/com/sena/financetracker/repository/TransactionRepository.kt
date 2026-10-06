@@ -1,18 +1,68 @@
 package com.sena.financetracker.repository
 
+import com.sena.financetracker.data.AccountDao
+import com.sena.financetracker.data.AccountEntity
+import com.sena.financetracker.data.AppDatabase
+import com.sena.financetracker.data.CategoryDao
+import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.TransactionDao
 import com.sena.financetracker.data.TransactionEntity
 import kotlinx.coroutines.flow.Flow
 
 class TransactionRepository(
-    private val transactionDao: TransactionDao
+    val transactionDao: TransactionDao,
+    val accountDao: AccountDao,
+    val categoryDao: CategoryDao
 ) {
-    fun getAllTransactions(): Flow<List<TransactionEntity>> {
-        return transactionDao.getAllTransactions()
-    }
+    constructor(db: AppDatabase) : this(
+        db.transactionDao,
+        db.accountDao,
+        db.categoryDao
+    )
+
+    // Backward-compatible constructor
+    constructor(transactionDao: TransactionDao) : this(
+        transactionDao = transactionDao,
+        accountDao = object : AccountDao {
+            override fun getAllAccounts(): Flow<List<AccountEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
+            override suspend fun getAccountById(id: Long): AccountEntity? = null
+            override suspend fun insertAccount(account: AccountEntity): Long = 0L
+            override suspend fun updateBalance(id: Long, newBalance: Double) {}
+            override suspend fun adjustBalance(id: Long, delta: Double) {}
+            override suspend fun deleteAccount(id: Long) {}
+        },
+        categoryDao = object : CategoryDao {
+            override fun getAllCategories(): Flow<List<CategoryEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
+            override fun getCategoriesByType(type: String): Flow<List<CategoryEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
+            override suspend fun insertCategory(category: CategoryEntity): Long = 0L
+            override suspend fun deleteCategory(id: Long) {}
+        }
+    )
+
+    fun getAllTransactions(): Flow<List<TransactionEntity>> = transactionDao.getAllTransactions()
+    fun getAllAccounts(): Flow<List<AccountEntity>> = accountDao.getAllAccounts()
+    fun getAllCategories(): Flow<List<CategoryEntity>> = categoryDao.getAllCategories()
+    fun getCategoriesByType(type: String): Flow<List<CategoryEntity>> = categoryDao.getCategoriesByType(type)
 
     suspend fun insertTransaction(transaction: TransactionEntity): Long {
-        return transactionDao.insertTransaction(transaction)
+        val insertedId = transactionDao.insertTransaction(transaction)
+        val delta = if (transaction.type.equals("INCOME", ignoreCase = true)) {
+            transaction.amount
+        } else {
+            -transaction.amount
+        }
+        accountDao.adjustBalance(transaction.accountId, delta)
+        return insertedId
+    }
+
+    suspend fun deleteTransaction(transaction: TransactionEntity) {
+        transactionDao.deleteTransaction(transaction.id)
+        val delta = if (transaction.type.equals("INCOME", ignoreCase = true)) {
+            -transaction.amount
+        } else {
+            transaction.amount
+        }
+        accountDao.adjustBalance(transaction.accountId, delta)
     }
 
     suspend fun deleteTransaction(id: Long) {

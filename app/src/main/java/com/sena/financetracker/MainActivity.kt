@@ -5,13 +5,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModelProvider
-import com.sena.financetracker.data.FinanceDatabaseHelper
+import com.sena.financetracker.data.AppDatabase
 import com.sena.financetracker.repository.TransactionRepository
 import com.sena.financetracker.ui.FinanceDashboardScreen
+import com.sena.financetracker.ui.components.RetroCanvas
 import com.sena.financetracker.viewmodel.FinanceViewModel
 
 class MainActivity : ComponentActivity() {
@@ -19,18 +20,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val dbHelper = FinanceDatabaseHelper(this)
-        val repository = TransactionRepository(dbHelper)
+        val appDatabase = AppDatabase.getInstance(this)
+        val repository = TransactionRepository(appDatabase)
         val viewModel = ViewModelProvider(
             this,
             FinanceViewModel.Factory(repository)
         )[FinanceViewModel::class.java]
 
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    FinanceDashboardScreen(viewModel = viewModel)
-                }
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = RetroCanvas
+            ) {
+                FinanceDashboardScreen(viewModel = viewModel)
             }
         }
     }
