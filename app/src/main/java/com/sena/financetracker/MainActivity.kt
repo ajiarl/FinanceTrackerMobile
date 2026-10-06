@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModelProvider
 import com.sena.financetracker.data.AppDatabase
 import com.sena.financetracker.repository.TransactionRepository
-import com.sena.financetracker.ui.FinanceDashboardScreen
+import com.sena.financetracker.ui.dashboard.FinanceDashboardScreen
 import com.sena.financetracker.ui.components.RetroCanvas
 import com.sena.financetracker.viewmodel.FinanceViewModel
 
