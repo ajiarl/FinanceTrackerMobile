@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -43,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sena.financetracker.data.AccountEntity
@@ -50,7 +50,6 @@ import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.ui.components.NeobrutalBadge
 import com.sena.financetracker.ui.components.NeobrutalCard
 import com.sena.financetracker.ui.components.NeobrutalFastAddDialog
-import com.sena.financetracker.ui.components.RetroAccountBlue
 import com.sena.financetracker.ui.components.RetroCanvas
 import com.sena.financetracker.ui.components.RetroExpenseDarkRed
 import com.sena.financetracker.ui.components.RetroExpenseRed
@@ -70,6 +69,44 @@ fun FinanceDashboardScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    FinanceDashboardContent(
+        uiState = uiState,
+        onAddTransaction = { title, amount, type, category, date, accountId, accountName, notes ->
+            viewModel.addTransaction(
+                title = title,
+                amount = amount,
+                type = type,
+                category = category,
+                date = date,
+                accountId = accountId,
+                accountName = accountName,
+                notes = notes
+            )
+        },
+        onDeleteTransaction = { tx ->
+            viewModel.deleteTransaction(tx)
+        },
+        modifier = modifier
+    )
+}
+
+@Composable
+fun FinanceDashboardContent(
+    uiState: FinanceUiState,
+    onAddTransaction: (
+        title: String,
+        amount: Double,
+        type: String,
+        category: String,
+        date: String,
+        accountId: Long,
+        accountName: String,
+        notes: String
+    ) -> Unit,
+    onDeleteTransaction: (TransactionEntity) -> Unit,
+    modifier: Modifier = Modifier
+) {
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedFilterTab by remember { mutableStateOf("ALL") } // "ALL", "EXPENSE", "INCOME"
 
@@ -465,7 +502,7 @@ fun FinanceDashboardScreen(
                 items(filteredTransactions, key = { it.id }) { tx ->
                     TransactionNeobrutalItem(
                         transaction = tx,
-                        onDelete = { viewModel.deleteTransaction(tx) }
+                        onDelete = { onDeleteTransaction(tx) }
                     )
                 }
             }
@@ -478,15 +515,15 @@ fun FinanceDashboardScreen(
             categories = uiState.categories,
             onDismiss = { showAddDialog = false },
             onSave = { title, amount, type, category, date, accountId, accountName, notes ->
-                viewModel.addTransaction(
-                    title = title,
-                    amount = amount,
-                    type = type,
-                    category = category,
-                    date = date,
-                    accountId = accountId,
-                    accountName = accountName,
-                    notes = notes
+                onAddTransaction(
+                    title,
+                    amount,
+                    type,
+                    category,
+                    date,
+                    accountId,
+                    accountName,
+                    notes
                 )
             }
         )
@@ -681,4 +718,67 @@ private fun TransactionNeobrutalItem(
             }
         }
     }
+}
+
+@Preview(
+    name = "Finance Tracker Neobrutal Phone",
+    showBackground = true,
+    showSystemUi = true,
+    device = "spec:width=411dp,height=891dp"
+)
+@Composable
+fun FinanceDashboardPreview() {
+    val dummyAccounts = listOf(
+        AccountEntity(id = 1, name = "BCA", type = "bank", balance = 2500000.0),
+        AccountEntity(id = 2, name = "Dompet Tunai", type = "cash", balance = 350000.0),
+        AccountEntity(id = 3, name = "GoPay", type = "e-wallet", balance = 400000.0)
+    )
+
+    val dummyTransactions = listOf(
+        TransactionEntity(
+            id = 1,
+            title = "Gaji Project",
+            amount = 4500000.0,
+            type = "INCOME",
+            category = "Freelance",
+            date = "2026-10-01",
+            accountId = 1,
+            accountName = "BCA"
+        ),
+        TransactionEntity(
+            id = 2,
+            title = "Makan Siang & Kopi",
+            amount = 45000.0,
+            type = "EXPENSE",
+            category = "Makanan",
+            date = "2026-10-02",
+            accountId = 2,
+            accountName = "Dompet Tunai"
+        ),
+        TransactionEntity(
+            id = 3,
+            title = "Beli Token Listrik",
+            amount = 100000.0,
+            type = "EXPENSE",
+            category = "Tagihan",
+            date = "2026-10-03",
+            accountId = 3,
+            accountName = "GoPay"
+        )
+    )
+
+    val dummyUiState = FinanceUiState(
+        transactions = dummyTransactions,
+        accounts = dummyAccounts,
+        totalBalance = 3250000.0,
+        totalIncome = 4500000.0,
+        totalExpense = 1250000.0,
+        isLoading = false
+    )
+
+    FinanceDashboardContent(
+        uiState = dummyUiState,
+        onAddTransaction = { _, _, _, _, _, _, _, _ -> },
+        onDeleteTransaction = {}
+    )
 }
