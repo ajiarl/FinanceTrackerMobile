@@ -108,6 +108,60 @@ class TransactionRepository(
         transactionDao.insertTransaction(transferTx)
     }
 
+    suspend fun addAccount(
+        name: String,
+        type: String,
+        initialBalance: Double,
+        date: String = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+    ): Long {
+        val newAccount = AccountEntity(
+            name = name,
+            type = type,
+            balance = initialBalance
+        )
+        val newAccountId = accountDao.insertAccount(newAccount)
+
+        if (initialBalance > 0) {
+            val initialTx = TransactionEntity(
+                title = "Saldo Awal",
+                amount = initialBalance,
+                type = "INCOME",
+                category = "Saldo Awal",
+                date = date,
+                accountId = newAccountId,
+                accountName = name,
+                notes = "Saldo awal saat pembuatan akun"
+            )
+            transactionDao.insertTransaction(initialTx)
+        }
+        return newAccountId
+    }
+
+    suspend fun reconcileAccount(
+        account: AccountEntity,
+        actualBalance: Double,
+        date: String = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+    ) {
+        val diff = actualBalance - account.balance
+        if (kotlin.math.abs(diff) < 0.001) return
+
+        // 1) Update saldo akun ke actualBalance
+        accountDao.updateBalance(account.id, actualBalance)
+
+        // 2) Buat transaksi penyesuaian sistem
+        val adjustmentTx = TransactionEntity(
+            title = "Penyesuaian Saldo Sistem",
+            amount = kotlin.math.abs(diff),
+            type = if (diff > 0) "INCOME" else "EXPENSE",
+            category = "Penyesuaian",
+            date = date,
+            accountId = account.id,
+            accountName = account.name,
+            notes = "Rekonsiliasi: saldo lama ${account.balance.toLong()}, saldo baru ${actualBalance.toLong()}, selisih ${if (diff > 0) "+" else ""}${diff.toLong()}"
+        )
+        transactionDao.insertTransaction(adjustmentTx)
+    }
+
     suspend fun updateTransaction(oldTransaction: TransactionEntity, newTransaction: TransactionEntity) {
         transactionDao.updateTransaction(newTransaction)
 

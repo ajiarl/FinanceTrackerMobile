@@ -36,6 +36,8 @@ import com.sena.financetracker.util.formatRupiah
 fun DashboardAccountsSection(
     accounts: List<AccountEntity>,
     onTransferClick: () -> Unit = {},
+    onAddAccountClick: () -> Unit = {},
+    onAccountClick: (AccountEntity) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -59,9 +61,37 @@ fun DashboardAccountsSection(
             )
 
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Tombol + AKUN Neobrutal
+                Box(modifier = Modifier.padding(end = 2.dp, bottom = 2.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .offset(x = 2.dp, y = 2.dp)
+                            .background(Color.Black, RectangleShape)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .background(RetroYellow, RectangleShape)
+                            .border(2.dp, Color.Black, RectangleShape)
+                            .clickable(onClick = onAddAccountClick)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "+ AKUN",
+                            style = TextStyle(
+                                color = Color.Black,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 11.sp,
+                                letterSpacing = 1.sp
+                            )
+                        )
+                    }
+                }
+
                 // Tombol Transfer Neobrutal
                 Box(modifier = Modifier.padding(end = 2.dp, bottom = 2.dp)) {
                     Box(
@@ -75,7 +105,7 @@ fun DashboardAccountsSection(
                             .background(RetroTransferBlue, RectangleShape)
                             .border(2.dp, Color.Black, RectangleShape)
                             .clickable(onClick = onTransferClick)
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -91,8 +121,8 @@ fun DashboardAccountsSection(
                 }
 
                 NeobrutalBadge(
-                    text = "${accounts.size} AKUN",
-                    backgroundColor = RetroYellow
+                    text = "${accounts.size}",
+                    backgroundColor = Color(0xFFF1F5F9)
                 )
             }
         }
@@ -105,7 +135,10 @@ fun DashboardAccountsSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             accounts.forEach { account ->
-                AccountNeobrutalItem(account = account)
+                AccountNeobrutalItem(
+                    account = account,
+                    onClick = { onAccountClick(account) }
+                )
             }
         }
     }
@@ -114,6 +147,7 @@ fun DashboardAccountsSection(
 @Composable
 fun AccountNeobrutalItem(
     account: AccountEntity,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val badgeConfig = when (account.type.lowercase()) {
@@ -123,7 +157,9 @@ fun AccountNeobrutalItem(
     }
 
     NeobrutalCard(
-        modifier = modifier.width(160.dp),
+        modifier = modifier
+            .width(160.dp)
+            .clickable(onClick = onClick),
         backgroundColor = Color.White,
         borderWidth = 2.dp,
         shadowOffset = 4.dp,

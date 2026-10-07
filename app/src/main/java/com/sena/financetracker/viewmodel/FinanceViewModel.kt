@@ -89,6 +89,22 @@ class FinanceViewModel(
         }
     }
 
+    fun addAccount(name: String, type: String, initialBalance: Double) {
+        viewModelScope.launch {
+            repository.addAccount(name, type, initialBalance)
+        }
+    }
+
+    fun reconcileAccount(
+        account: AccountEntity,
+        actualBalance: Double,
+        date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+    ) {
+        viewModelScope.launch {
+            repository.reconcileAccount(account, actualBalance, date)
+        }
+    }
+
     fun deleteTransaction(id: Long) {
         viewModelScope.launch {
             val tx = _uiState.value.transactions.find { it.id == id }

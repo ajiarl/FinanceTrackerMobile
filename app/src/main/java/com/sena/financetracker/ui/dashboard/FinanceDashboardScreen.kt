@@ -40,7 +40,9 @@ import com.sena.financetracker.ui.components.RetroYellow
 import com.sena.financetracker.ui.dashboard.components.DashboardAccountsSection
 import com.sena.financetracker.ui.dashboard.components.DashboardBalanceSection
 import com.sena.financetracker.ui.dashboard.components.DashboardTransactionsSection
+import com.sena.financetracker.ui.dashboard.components.NeobrutalAddAccountDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalEditTransactionDialog
+import com.sena.financetracker.ui.dashboard.components.NeobrutalReconcileDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalTransferDialog
 import com.sena.financetracker.viewmodel.FinanceUiState
 import com.sena.financetracker.viewmodel.FinanceViewModel
@@ -65,6 +67,12 @@ fun FinanceDashboardScreen(
         onTransferFunds = { fromAcc, toAcc, amount, notes, date ->
             viewModel.transferFunds(fromAcc, toAcc, amount, notes, date)
         },
+        onAddAccount = { name, type, initialBalance ->
+            viewModel.addAccount(name, type, initialBalance)
+        },
+        onReconcileAccount = { account, actualBalance ->
+            viewModel.reconcileAccount(account, actualBalance)
+        },
         modifier = modifier
     )
 }
@@ -85,10 +93,14 @@ fun FinanceDashboardContent(
     onDeleteTransaction: (TransactionEntity) -> Unit,
     onUpdateTransaction: (oldTransaction: TransactionEntity, newTransaction: TransactionEntity) -> Unit = { _, _ -> },
     onTransferFunds: (fromAccount: AccountEntity, toAccount: AccountEntity, amount: Double, notes: String, date: String) -> Unit = { _, _, _, _, _ -> },
+    onAddAccount: (name: String, type: String, initialBalance: Double) -> Unit = { _, _, _ -> },
+    onReconcileAccount: (account: AccountEntity, actualBalance: Double) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var showTransferDialog by remember { mutableStateOf(false) }
+    var showAddAccountDialog by remember { mutableStateOf(false) }
+    var reconcilingAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var selectedFilterTab by remember { mutableStateOf("ALL") }
 
@@ -154,7 +166,9 @@ fun FinanceDashboardContent(
             item {
                 DashboardAccountsSection(
                     accounts = uiState.accounts,
-                    onTransferClick = { showTransferDialog = true }
+                    onTransferClick = { showTransferDialog = true },
+                    onAddAccountClick = { showAddAccountDialog = true },
+                    onAccountClick = { reconcilingAccount = it }
                 )
             }
 
@@ -186,6 +200,27 @@ fun FinanceDashboardContent(
             onTransfer = { fromAcc, toAcc, amount, notes, date ->
                 onTransferFunds(fromAcc, toAcc, amount, notes, date)
                 showTransferDialog = false
+            }
+        )
+    }
+
+    if (showAddAccountDialog) {
+        NeobrutalAddAccountDialog(
+            onDismiss = { showAddAccountDialog = false },
+            onSave = { name, type, initialBalance ->
+                onAddAccount(name, type, initialBalance)
+                showAddAccountDialog = false
+            }
+        )
+    }
+
+    reconcilingAccount?.let { accToReconcile ->
+        NeobrutalReconcileDialog(
+            account = accToReconcile,
+            onDismiss = { reconcilingAccount = null },
+            onReconcile = { account, actualBalance ->
+                onReconcileAccount(account, actualBalance)
+                reconcilingAccount = null
             }
         )
     }
