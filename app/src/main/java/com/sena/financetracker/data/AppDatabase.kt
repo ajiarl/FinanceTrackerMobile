@@ -442,6 +442,13 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             Unit
         }
 
+        override suspend fun clearAllTransactions() = withContext(Dispatchers.IO) {
+            val db = writableDatabase
+            db.delete(TABLE_TRANSACTIONS, null, null)
+            refreshTransactionsFlowInternal()
+            Unit
+        }
+
         override suspend fun updateTransaction(transaction: TransactionEntity) = withContext(Dispatchers.IO) {
             val db = writableDatabase
             val values = ContentValues().apply {

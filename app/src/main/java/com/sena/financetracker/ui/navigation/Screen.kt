@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.InsertChartOutlined
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
@@ -61,6 +62,12 @@ sealed class Screen(
         route = "notifications",
         title = "Notifikasi",
         icon = Icons.Default.Notifications
+    )
+
+    data object Settings : Screen(
+        route = "settings",
+        title = "Pengaturan",
+        icon = Icons.Default.Settings
     )
 
     companion object {

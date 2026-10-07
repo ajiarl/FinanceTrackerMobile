@@ -508,6 +508,13 @@ class TransactionRepository(
     }
 
     /**
+     * Mengosongkan seluruh data transaksi dari database (Reset Database Transaksi).
+     */
+    suspend fun resetTransactions() {
+        transactionDao.clearAllTransactions()
+    }
+
+    /**
      * Melakukan transfer dana antar rekening secara aman dan atomik.
      *
      * Logika Operasional:

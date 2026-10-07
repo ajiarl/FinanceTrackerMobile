@@ -8,4 +8,5 @@ interface TransactionDao {
     suspend fun deleteTransaction(id: Long)
     suspend fun updateTransaction(transaction: TransactionEntity)
     suspend fun getTransactionById(id: Long): TransactionEntity?
+    suspend fun clearAllTransactions() {}
 }

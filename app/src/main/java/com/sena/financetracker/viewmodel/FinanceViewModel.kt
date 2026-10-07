@@ -265,6 +265,20 @@ class FinanceViewModel(
     }
 
     /**
+     * Mengosongkan seluruh riwayat database transaksi dan mereset filter.
+     */
+    fun resetTransactions() {
+        viewModelScope.launch {
+            try {
+                repository.resetTransactions()
+                clearFilters()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = "Gagal mereset database transaksi: ${e.message}")
+            }
+        }
+    }
+
+    /**
      * Menambahkan anggaran baru per kategori dan periode bulan.
      */
     fun addBudget(

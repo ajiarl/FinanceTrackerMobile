@@ -46,6 +46,7 @@ import com.sena.financetracker.ui.dashboard.screens.CategoriesScreen
 import com.sena.financetracker.ui.dashboard.screens.BudgetsScreen
 import com.sena.financetracker.ui.dashboard.screens.HomeScreen
 import com.sena.financetracker.ui.dashboard.screens.NotificationsScreen
+import com.sena.financetracker.ui.dashboard.screens.SettingsScreen
 import com.sena.financetracker.ui.dashboard.screens.ReportsScreen
 import com.sena.financetracker.ui.dashboard.screens.TransactionsScreen
 import com.sena.financetracker.ui.navigation.NeobrutalBottomNav
@@ -112,6 +113,7 @@ fun FinanceDashboardScreen(
         onMarkAllNotificationsAsRead = { viewModel.markAllNotificationsAsRead() },
         onClearAllNotifications = { viewModel.clearAllNotifications() },
         onDeleteNotification = { viewModel.deleteNotification(it) },
+        onResetTransactions = { viewModel.resetTransactions() },
         modifier = modifier
     )
 }
@@ -150,6 +152,7 @@ fun FinanceDashboardContent(
     onMarkAllNotificationsAsRead: () -> Unit = {},
     onClearAllNotifications: () -> Unit = {},
     onDeleteNotification: (Long) -> Unit = {},
+    onResetTransactions: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -213,6 +216,9 @@ fun FinanceDashboardContent(
                     },
                     onNavigateToNotifications = {
                         navController.navigate(Screen.Notifications.route)
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate(Screen.Settings.route)
                     }
                 )
             }
@@ -284,6 +290,21 @@ fun FinanceDashboardContent(
                     onMarkAllAsRead = onMarkAllNotificationsAsRead,
                     onClearAllNotifications = onClearAllNotifications,
                     onDeleteNotification = onDeleteNotification
+                )
+            }
+
+            // Sub-screen: Pengaturan & Preferensi
+            composable(Screen.Settings.route) {
+                SettingsScreen(
+                    uiState = uiState,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToCategories = {
+                        navController.navigate(Screen.Categories.route)
+                    },
+                    onNavigateToNotifications = {
+                        navController.navigate(Screen.Notifications.route)
+                    },
+                    onResetTransactions = onResetTransactions
                 )
             }
         }

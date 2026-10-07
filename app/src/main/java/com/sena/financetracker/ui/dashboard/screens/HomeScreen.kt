@@ -19,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,6 +59,7 @@ fun HomeScreen(
     onAccountClick: (AccountEntity) -> Unit,
     onNavigateToTransactions: () -> Unit,
     onNavigateToNotifications: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val currentMonthText = remember {
@@ -103,50 +105,85 @@ fun HomeScreen(
                     )
                 }
 
-                // Tombol Lonceng Neobrutal
-                Box(
-                    modifier = Modifier
-                        .clickable(onClick = onNavigateToNotifications)
+                // Aksi Top Bar Header: Lonceng Notifikasi & Gerigi Pengaturan
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Drop shadow kotak 3.dp
+                    // Tombol Lonceng Neobrutal
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
-                            .offset(x = 3.dp, y = 3.dp)
-                            .background(Color.Black, RectangleShape)
-                    )
-                    // Button body neobrutal
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .background(Color.White, RectangleShape)
-                            .border(2.dp, Color.Black, RectangleShape),
-                        contentAlignment = Alignment.Center
+                            .clickable(onClick = onNavigateToNotifications)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Notifications,
-                            contentDescription = "Pusat Notifikasi",
-                            tint = Color.Black,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-                    // Badge Merah Unread Count
-                    if (uiState.unreadNotificationCount > 0) {
+                        // Drop shadow kotak 3.dp
                         Box(
                             modifier = Modifier
-                                .offset(x = 28.dp, y = (-4).dp)
-                                .background(Color(0xFFDC2626), RectangleShape)
-                                .border(1.5.dp, Color.Black, RectangleShape)
-                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                .size(44.dp)
+                                .offset(x = 3.dp, y = 3.dp)
+                                .background(Color.Black, RectangleShape)
+                        )
+                        // Button body neobrutal
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .background(Color.White, RectangleShape)
+                                .border(2.dp, Color.Black, RectangleShape),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = if (uiState.unreadNotificationCount > 99) "99+" else uiState.unreadNotificationCount.toString(),
-                                style = TextStyle(
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 10.sp,
-                                    color = Color.White
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Pusat Notifikasi",
+                                tint = Color.Black,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        // Badge Merah Unread Count
+                        if (uiState.unreadNotificationCount > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .offset(x = 28.dp, y = (-4).dp)
+                                    .background(Color(0xFFDC2626), RectangleShape)
+                                    .border(1.5.dp, Color.Black, RectangleShape)
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            ) {
+                                Text(
+                                    text = if (uiState.unreadNotificationCount > 99) "99+" else uiState.unreadNotificationCount.toString(),
+                                    style = TextStyle(
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 10.sp,
+                                        color = Color.White
+                                    )
                                 )
+                            }
+                        }
+                    }
+
+                    // Tombol Gerigi Pengaturan Neobrutal
+                    Box(
+                        modifier = Modifier
+                            .clickable(onClick = onNavigateToSettings)
+                    ) {
+                        // Drop shadow kotak 3.dp
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .offset(x = 3.dp, y = 3.dp)
+                                .background(Color.Black, RectangleShape)
+                        )
+                        // Button body neobrutal
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .background(Color.White, RectangleShape)
+                                .border(2.dp, Color.Black, RectangleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Pengaturan",
+                                tint = Color.Black,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
