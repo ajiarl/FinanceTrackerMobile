@@ -206,6 +206,8 @@ class TransferFundsTest {
         override fun getAllCategories(): Flow<List<CategoryEntity>> = flowOf(emptyList())
         override fun getCategoriesByType(type: String): Flow<List<CategoryEntity>> = flowOf(emptyList())
         override suspend fun insertCategory(category: CategoryEntity): Long = 1L
-        override suspend fun deleteCategory(id: Long) {}
+        override suspend fun updateCategory(category: CategoryEntity): Int = 1
+        override suspend fun deleteCategory(id: Long): Int = 1
+        override suspend fun getCategoryById(id: Long): CategoryEntity? = null
     }
 }

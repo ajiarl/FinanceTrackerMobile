@@ -42,6 +42,7 @@ import com.sena.financetracker.ui.dashboard.components.NeobrutalEditTransactionD
 import com.sena.financetracker.ui.dashboard.components.NeobrutalReconcileDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalTransferDialog
 import com.sena.financetracker.ui.dashboard.screens.AccountsScreen
+import com.sena.financetracker.ui.dashboard.screens.CategoriesScreen
 import com.sena.financetracker.ui.dashboard.screens.BudgetsScreen
 import com.sena.financetracker.ui.dashboard.screens.HomeScreen
 import com.sena.financetracker.ui.dashboard.screens.ReportsScreen
@@ -97,6 +98,15 @@ fun FinanceDashboardScreen(
         onCategoryFilterSelected = { viewModel.setSelectedCategoryFilter(it) },
         onResetFilters = { viewModel.clearFilters() },
         onReportsPresetSelected = { viewModel.setReportsPeriodPreset(it) },
+        onAddCategory = { name, type, color ->
+            viewModel.addCategory(name, type, color)
+        },
+        onUpdateCategory = { id, name, type, color ->
+            viewModel.updateCategory(id, name, type, color)
+        },
+        onDeleteCategory = { id ->
+            viewModel.deleteCategory(id)
+        },
         modifier = modifier
     )
 }
@@ -128,6 +138,9 @@ fun FinanceDashboardContent(
     onCategoryFilterSelected: (String?) -> Unit = {},
     onResetFilters: () -> Unit = {},
     onReportsPresetSelected: (String) -> Unit = {},
+    onAddCategory: (name: String, type: String, color: String) -> Unit = { _, _, _ -> },
+    onUpdateCategory: (id: Long, name: String, type: String, color: String) -> Unit = { _, _, _, _ -> },
+    onDeleteCategory: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -224,7 +237,10 @@ fun FinanceDashboardContent(
                     uiState = uiState,
                     onAddAccountClick = { showAddAccountDialog = true },
                     onTransferClick = { showTransferDialog = true },
-                    onAccountClick = { reconcilingAccount = it }
+                    onAccountClick = { reconcilingAccount = it },
+                    onManageCategoriesClick = {
+                        navController.navigate(Screen.Categories.route)
+                    }
                 )
             }
 
@@ -233,6 +249,17 @@ fun FinanceDashboardContent(
                 ReportsScreen(
                     uiState = uiState,
                     onPresetSelected = onReportsPresetSelected
+                )
+            }
+
+            // Sub-screen: Kelola Kategori
+            composable(Screen.Categories.route) {
+                CategoriesScreen(
+                    uiState = uiState,
+                    onNavigateBack = { navController.popBackStack() },
+                    onAddCategory = onAddCategory,
+                    onUpdateCategory = onUpdateCategory,
+                    onDeleteCategory = onDeleteCategory
                 )
             }
         }
@@ -244,6 +271,9 @@ fun FinanceDashboardContent(
             accounts = uiState.accounts,
             categories = uiState.categories,
             onDismiss = { showAddDialog = false },
+            onManageCategoriesClick = {
+                navController.navigate(Screen.Categories.route)
+            },
             onSave = onAddTransaction
         )
     }

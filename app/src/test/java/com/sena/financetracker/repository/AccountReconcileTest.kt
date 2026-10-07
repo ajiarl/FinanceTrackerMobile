@@ -7,6 +7,7 @@ import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.TransactionDao
 import com.sena.financetracker.data.TransactionEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -86,10 +87,12 @@ class AccountReconcileTest {
     }
 
     class FakeCategoryDao : CategoryDao {
-        override fun getAllCategories(): Flow<List<CategoryEntity>> = MutableStateFlow(emptyList())
-        override fun getCategoriesByType(type: String): Flow<List<CategoryEntity>> = MutableStateFlow(emptyList())
+        override fun getAllCategories(): Flow<List<CategoryEntity>> = flowOf(emptyList())
+        override fun getCategoriesByType(type: String): Flow<List<CategoryEntity>> = flowOf(emptyList())
         override suspend fun insertCategory(category: CategoryEntity): Long = 1L
-        override suspend fun deleteCategory(id: Long) {}
+        override suspend fun updateCategory(category: CategoryEntity): Int = 1
+        override suspend fun deleteCategory(id: Long): Int = 1
+        override suspend fun getCategoryById(id: Long): CategoryEntity? = null
     }
 
     @Before

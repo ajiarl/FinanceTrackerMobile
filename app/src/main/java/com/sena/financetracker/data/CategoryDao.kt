@@ -6,5 +6,7 @@ interface CategoryDao {
     fun getAllCategories(): Flow<List<CategoryEntity>>
     fun getCategoriesByType(type: String): Flow<List<CategoryEntity>>
     suspend fun insertCategory(category: CategoryEntity): Long
-    suspend fun deleteCategory(id: Long)
+    suspend fun updateCategory(category: CategoryEntity): Int
+    suspend fun deleteCategory(id: Long): Int
+    suspend fun getCategoryById(id: Long): CategoryEntity?
 }

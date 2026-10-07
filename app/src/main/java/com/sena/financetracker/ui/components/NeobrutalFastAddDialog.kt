@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -48,6 +49,7 @@ fun NeobrutalFastAddDialog(
     accounts: List<AccountEntity>,
     categories: List<CategoryEntity>,
     onDismiss: () -> Unit,
+    onManageCategoriesClick: (() -> Unit)? = null,
     onSave: (
         title: String,
         amount: Double,
@@ -348,16 +350,52 @@ fun NeobrutalFastAddDialog(
 
                     // 5. Category Selection
                     Column {
-                        Text(
-                            text = "KATEGORI",
-                            style = TextStyle(
-                                fontWeight = FontWeight.Black,
-                                fontSize = 11.sp,
-                                letterSpacing = 1.sp,
-                                color = Color.Black
-                            ),
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "KATEGORI",
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 11.sp,
+                                    letterSpacing = 1.sp,
+                                    color = Color.Black
+                                )
+                            )
+                            onManageCategoriesClick?.let { manageClick ->
+                                Row(
+                                    modifier = Modifier
+                                        .background(Color(0xFFE2E8F0), RectangleShape)
+                                        .border(1.dp, Color.Black, RectangleShape)
+                                        .clickable {
+                                            onDismiss()
+                                            manageClick()
+                                        }
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.List,
+                                        contentDescription = null,
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        text = "+ KELOLA",
+                                        style = TextStyle(
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 9.sp,
+                                            color = Color.Black
+                                        )
+                                    )
+                                }
+                            }
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
