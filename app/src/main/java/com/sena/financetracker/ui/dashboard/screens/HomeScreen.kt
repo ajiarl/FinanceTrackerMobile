@@ -84,7 +84,9 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
                     Text(
                         text = "RINGKASAN KEUANGAN",
                         style = TextStyle(

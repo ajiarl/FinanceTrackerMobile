@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sena.financetracker.ui.components.RetroYellow
@@ -44,6 +46,7 @@ fun NeobrutalBottomNav(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .navigationBarsPadding()
             .height(68.dp)
             .background(Color.White)
             .drawBehind {
@@ -129,7 +132,8 @@ private fun BottomNavItem(
                             letterSpacing = 0.2.sp,
                             color = Color.Black
                         ),
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -153,7 +157,8 @@ private fun BottomNavItem(
                         fontSize = 10.sp,
                         color = Color(0xFF64748B)
                     ),
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }

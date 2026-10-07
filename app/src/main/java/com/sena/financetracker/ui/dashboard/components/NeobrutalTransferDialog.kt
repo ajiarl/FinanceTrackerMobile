@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -89,6 +90,7 @@ fun NeobrutalTransferDialog(
     ) {
         Box(
             modifier = Modifier
+                .imePadding()
                 .padding(16.dp)
                 .fillMaxWidth()
         ) {

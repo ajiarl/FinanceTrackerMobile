@@ -72,7 +72,9 @@ fun TransactionsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Bottom
             ) {
-                Column {
+                Column(
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
                     Text(
                         text = "CATATAN ARUS KAS",
                         style = TextStyle(
