@@ -33,7 +33,20 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
 
     companion object {
         const val DATABASE_NAME = "finance_tracker.db"
-        const val DATABASE_VERSION = 4
+        const val DATABASE_VERSION = 5
+
+        // Database Indexes (Version 5 Migration)
+        const val INDEX_TX_DATE = "idx_transactions_date"
+        const val INDEX_TX_CATEGORY = "idx_transactions_category"
+        const val INDEX_TX_ACCOUNT = "idx_transactions_account"
+        const val INDEX_BUDGETS_CATEGORY = "idx_budgets_category"
+
+        val INDEX_DDL_STATEMENTS = listOf(
+            "CREATE INDEX IF NOT EXISTS $INDEX_TX_DATE ON $TABLE_TRANSACTIONS($COL_TX_DATE DESC);",
+            "CREATE INDEX IF NOT EXISTS $INDEX_TX_CATEGORY ON $TABLE_TRANSACTIONS($COL_TX_CATEGORY);",
+            "CREATE INDEX IF NOT EXISTS $INDEX_TX_ACCOUNT ON $TABLE_TRANSACTIONS($COL_TX_ACCOUNT_ID);",
+            "CREATE INDEX IF NOT EXISTS $INDEX_BUDGETS_CATEGORY ON $TABLE_BUDGETS($COL_BUDGET_CATEGORY);"
+        )
 
         // Table Transactions
         const val TABLE_TRANSACTIONS = "transactions"
@@ -143,7 +156,14 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
 
         createBudgetsTable(db)
         createNotificationsTable(db)
+        createDatabaseIndexes(db)
         seedInitialData(db)
+    }
+
+    private fun createDatabaseIndexes(db: SQLiteDatabase) {
+        for (ddl in INDEX_DDL_STATEMENTS) {
+            db.execSQL(ddl)
+        }
     }
 
     private fun createNotificationsTable(db: SQLiteDatabase) {
@@ -182,6 +202,9 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         }
         if (oldVersion < 4) {
             createNotificationsTable(db)
+        }
+        if (oldVersion < 5) {
+            createDatabaseIndexes(db)
         }
     }
 
@@ -222,6 +245,18 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
                 put(COL_CAT_COLOR, color)
             }
             db.insert(TABLE_CATEGORIES, null, cv)
+        }
+    }
+
+    suspend fun <T> runInTransaction(block: suspend () -> T): T = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val result = block()
+            db.setTransactionSuccessful()
+            result
+        } finally {
+            db.endTransaction()
         }
     }
 
