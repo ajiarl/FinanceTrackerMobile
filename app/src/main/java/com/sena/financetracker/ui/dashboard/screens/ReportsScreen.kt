@@ -1,5 +1,6 @@
 package com.sena.financetracker.ui.dashboard.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,6 +20,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,6 +32,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.sena.financetracker.ui.components.RetroCanvas
 import com.sena.financetracker.ui.components.RetroIncomeGreen
 import com.sena.financetracker.ui.components.RetroYellow
+import com.sena.financetracker.util.CsvExporter
 import com.sena.financetracker.util.formatRupiah
 import com.sena.financetracker.viewmodel.CashflowBarItem
 import com.sena.financetracker.viewmodel.CategoryBreakdownItem
@@ -43,7 +49,8 @@ import kotlin.math.max
 
 /**
  * Tab 5 - Laporan & Grafik Analisis Keuangan (ReportsScreen):
- * - Header "LAPORAN KEUANGAN" & Filter Preset Chip Neobrutal (Bulan Ini, Bulan Lalu, 3 Bulan, Semua).
+ * - Header "LAPORAN KEUANGAN" + Tombol Aksi Neobrutal "BAGIKAN CSV".
+ * - Filter Preset Chip Neobrutal (Bulan Ini, Bulan Lalu, 3 Bulan, Semua).
  * - Kartu Neobrutal Ringkasan Rasio Tabungan (Saving Rate % badge: HEMAT / NORMAL / BOROS).
  * - Kartu Diagram Batang Arus Kas (Canvas Neobrutal: Pemasukan Hijau Emerald vs Pengeluaran Merah).
  * - Kartu Komposisi Pengeluaran per Kategori dengan Neobrutal progress strip bar.
@@ -55,6 +62,7 @@ fun ReportsScreen(
     modifier: Modifier = Modifier
 ) {
     val reports = uiState.reportsAnalytics
+    val context = LocalContext.current
 
     LazyColumn(
         modifier = modifier
@@ -63,27 +71,84 @@ fun ReportsScreen(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header & Period Preset Filter
+        // Header & Period Preset Filter + Export Button
         item {
             Column {
-                Text(
-                    text = "ANALISIS ARUS KAS",
-                    style = TextStyle(
-                        fontWeight = FontWeight.Black,
-                        fontSize = 11.sp,
-                        letterSpacing = 2.sp,
-                        color = Color.Black.copy(alpha = 0.5f)
-                    )
-                )
-                Text(
-                    text = "LAPORAN KEUANGAN",
-                    style = TextStyle(
-                        fontWeight = FontWeight.Black,
-                        fontSize = 22.sp,
-                        letterSpacing = (-0.5).sp,
-                        color = Color.Black
-                    )
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Column {
+                        Text(
+                            text = "ANALISIS ARUS KAS",
+                            style = TextStyle(
+                                fontWeight = FontWeight.Black,
+                                fontSize = 11.sp,
+                                letterSpacing = 2.sp,
+                                color = Color.Black.copy(alpha = 0.5f)
+                            )
+                        )
+                        Text(
+                            text = "LAPORAN KEUANGAN",
+                            style = TextStyle(
+                                fontWeight = FontWeight.Black,
+                                fontSize = 22.sp,
+                                letterSpacing = (-0.5).sp,
+                                color = Color.Black
+                            )
+                        )
+                    }
+
+                    // Tombol Neobrutal "BAGIKAN CSV"
+                    Box(
+                        modifier = Modifier.clickable {
+                            if (uiState.transactions.isEmpty()) {
+                                Toast.makeText(context, "Belum ada transaksi untuk dibagikan!", Toast.LENGTH_SHORT).show()
+                            } else {
+                                val csvData = CsvExporter.generateTransactionsCsv(
+                                    transactions = uiState.transactions,
+                                    accounts = uiState.accounts,
+                                    categories = uiState.categories
+                                )
+                                CsvExporter.exportAndShareCsv(context, csvData)
+                                Toast.makeText(context, "Membuka Share Sheet CSV...", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .offset(x = 2.dp, y = 2.dp)
+                                .background(Color.Black, RectangleShape)
+                        )
+                        Row(
+                            modifier = Modifier
+                                .background(RetroYellow, RectangleShape)
+                                .border(2.dp, Color.Black, RectangleShape)
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FileDownload,
+                                contentDescription = "Bagikan CSV",
+                                tint = Color.Black,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "BAGIKAN CSV",
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 11.sp,
+                                    letterSpacing = 0.5.sp,
+                                    color = Color.Black
+                                )
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Preset Chips Row
