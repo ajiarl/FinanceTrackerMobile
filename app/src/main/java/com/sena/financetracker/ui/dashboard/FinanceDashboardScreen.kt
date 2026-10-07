@@ -3,21 +3,16 @@ package com.sena.financetracker.ui.dashboard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,42 +23,53 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.ui.components.NeobrutalFastAddDialog
 import com.sena.financetracker.ui.components.RetroCanvas
 import com.sena.financetracker.ui.components.RetroYellow
-import com.sena.financetracker.ui.dashboard.components.DashboardAccountsSection
-import com.sena.financetracker.ui.dashboard.components.DashboardBalanceSection
-import com.sena.financetracker.ui.dashboard.components.DashboardBudgetsSection
-import com.sena.financetracker.ui.dashboard.components.DashboardTransactionsSection
 import com.sena.financetracker.ui.dashboard.components.NeobrutalAddAccountDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalAddBudgetDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalConfirmDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalEditTransactionDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalReconcileDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalTransferDialog
+import com.sena.financetracker.ui.dashboard.screens.AccountsScreen
+import com.sena.financetracker.ui.dashboard.screens.BudgetsScreen
+import com.sena.financetracker.ui.dashboard.screens.HomeScreen
+import com.sena.financetracker.ui.dashboard.screens.TransactionsScreen
+import com.sena.financetracker.ui.navigation.NeobrutalBottomNav
+import com.sena.financetracker.ui.navigation.Screen
 import com.sena.financetracker.util.formatRupiah
 import com.sena.financetracker.viewmodel.FinanceUiState
 import com.sena.financetracker.viewmodel.FinanceViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
+/**
+ * Layar utama aplikasi dengan Scaffolding Neobrutalisme dan 4-Tab Bottom Navigation Bar terpadu.
+ *
+ * Mengintegrasikan:
+ * - NavHost dengan 4 tab: Beranda, Transaksi, Anggaran, Akun.
+ * - State sharing reaktif terpusat melalui [FinanceViewModel].
+ * - Dialog modal atomik (Fast Add, Transfer, Akun Baru, Budget, Edit Tx, dan Konfirmasi Hapus).
+ */
 @Composable
 fun FinanceDashboardScreen(
     viewModel: FinanceViewModel,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val navController = rememberNavController()
 
     FinanceDashboardContent(
         uiState = uiState,
+        navController = navController,
         onAddTransaction = { title, amount, type, category, date, accId, accName, notes ->
             viewModel.addTransaction(title, amount, type, category, date, accId, accName, notes)
         },
@@ -96,6 +102,7 @@ fun FinanceDashboardScreen(
 @Composable
 fun FinanceDashboardContent(
     uiState: FinanceUiState,
+    navController: NavHostController = rememberNavController(),
     onAddTransaction: (
         title: String,
         amount: Double,
@@ -131,69 +138,75 @@ fun FinanceDashboardContent(
     var transactionToDelete by remember { mutableStateOf<TransactionEntity?>(null) }
     var budgetToDelete by remember { mutableStateOf<BudgetProgressItem?>(null) }
 
-    val currentMonthText = remember {
-        SimpleDateFormat("MMMM yyyy", Locale.forLanguageTag("id-ID")).format(Date()).uppercase()
-    }
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Dashboard.route
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = RetroCanvas,
+        bottomBar = {
+            NeobrutalBottomNav(
+                currentRoute = currentRoute,
+                onTabSelected = { targetScreen ->
+                    if (currentRoute != targetScreen.route) {
+                        navController.navigate(targetScreen.route) {
+                            popUpTo(Screen.Dashboard.route) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }
+            )
+        },
         floatingActionButton = {
             DashboardFab(onClick = { showAddDialog = true })
         },
         floatingActionButtonPosition = FabPosition.End
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Dashboard.route,
+            modifier = Modifier.padding(innerPadding)
         ) {
-            item {
-                Column {
-                    Text(
-                        text = "RINGKASAN KEUANGAN",
-                        style = TextStyle(
-                            fontWeight = FontWeight.Black,
-                            fontSize = 11.sp,
-                            letterSpacing = 2.sp,
-                            color = Color.Black.copy(alpha = 0.5f)
-                        )
-                    )
-                    Text(
-                        text = "HALO, AJI",
-                        style = TextStyle(
-                            fontWeight = FontWeight.Black,
-                            fontSize = 24.sp,
-                            letterSpacing = (-0.5).sp,
-                            color = Color.Black
-                        )
-                    )
-                }
-            }
-
-            item {
-                DashboardBalanceSection(
-                    totalBalance = uiState.totalBalance,
-                    totalIncome = uiState.totalIncome,
-                    totalExpense = uiState.totalExpense,
-                    currentMonthText = currentMonthText
-                )
-            }
-
-            item {
-                DashboardAccountsSection(
-                    accounts = uiState.accounts,
+            // Tab 1: Beranda
+            composable(Screen.Dashboard.route) {
+                HomeScreen(
+                    uiState = uiState,
                     onTransferClick = { showTransferDialog = true },
                     onAddAccountClick = { showAddAccountDialog = true },
-                    onAccountClick = { reconcilingAccount = it }
+                    onAccountClick = { reconcilingAccount = it },
+                    onNavigateToTransactions = {
+                        navController.navigate(Screen.Transactions.route) {
+                            popUpTo(Screen.Dashboard.route) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                 )
             }
 
-            item {
-                DashboardBudgetsSection(
-                    budgets = uiState.budgets,
+            // Tab 2: Transaksi
+            composable(Screen.Transactions.route) {
+                TransactionsScreen(
+                    uiState = uiState,
+                    onFilterTabSelected = onFilterTabSelected,
+                    onSearchQueryChange = onSearchQueryChange,
+                    onDateFilterSelected = onDateFilterSelected,
+                    onCategoryFilterSelected = onCategoryFilterSelected,
+                    onResetFilters = onResetFilters,
+                    onDeleteTransaction = { tx -> transactionToDelete = tx },
+                    onEditTransaction = { tx -> editingTransaction = tx }
+                )
+            }
+
+            // Tab 3: Anggaran
+            composable(Screen.Budgets.route) {
+                BudgetsScreen(
+                    uiState = uiState,
                     onAddBudgetClick = { showAddBudgetDialog = true },
                     onDeleteBudgetClick = { budgetId ->
                         val item = uiState.budgets.find { it.budget.id == budgetId }
@@ -202,23 +215,13 @@ fun FinanceDashboardContent(
                 )
             }
 
-            item {
-                DashboardTransactionsSection(
-                    transactions = uiState.filteredTransactions,
-                    selectedFilterTab = uiState.selectedFilterTab,
-                    onFilterTabSelected = onFilterTabSelected,
-                    searchQuery = uiState.searchQuery,
-                    onSearchQueryChange = onSearchQueryChange,
-                    selectedDateFilter = uiState.selectedDateFilter,
-                    onDateFilterSelected = onDateFilterSelected,
-                    categories = uiState.categories,
-                    selectedCategoryFilter = uiState.selectedCategoryFilter,
-                    onCategoryFilterSelected = onCategoryFilterSelected,
-                    onResetFilters = onResetFilters,
-                    onDeleteTransaction = { tx ->
-                        transactionToDelete = tx
-                    },
-                    onEditTransaction = { editingTransaction = it }
+            // Tab 4: Akun & Rekening
+            composable(Screen.Accounts.route) {
+                AccountsScreen(
+                    uiState = uiState,
+                    onAddAccountClick = { showAddAccountDialog = true },
+                    onTransferClick = { showTransferDialog = true },
+                    onAccountClick = { reconcilingAccount = it }
                 )
             }
         }
