@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.InsertChartOutlined
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -43,16 +44,23 @@ sealed class Screen(
         icon = Icons.Default.AccountBalanceWallet
     )
 
+    data object Reports : Screen(
+        route = "reports",
+        title = "Laporan",
+        icon = Icons.Default.InsertChartOutlined
+    )
+
     companion object {
         /**
-         * Seluruh daftar layar tab bottom navigation utama.
+         * Seluruh daftar layar tab bottom navigation utama (5 Tab: Beranda, Transaksi, Anggaran, Akun, Laporan).
          */
         val bottomNavItems: List<Screen> by lazy {
             listOf(
                 Dashboard,
                 Transactions,
                 Budgets,
-                Accounts
+                Accounts,
+                Reports
             )
         }
     }

@@ -56,11 +56,11 @@ fun NeobrutalBottomNav(
                     strokeWidth = strokeWidth
                 )
             }
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(horizontal = 4.dp, vertical = 6.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceAround,
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             val items = Screen.bottomNavItems
@@ -88,7 +88,7 @@ private fun BottomNavItem(
 
     Box(
         modifier = modifier
-            .padding(horizontal = 4.dp)
+            .padding(horizontal = 2.dp)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -111,7 +111,7 @@ private fun BottomNavItem(
                     modifier = Modifier
                         .background(RetroYellow, RectangleShape)
                         .border(2.dp, Color.Black, RectangleShape)
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
@@ -119,16 +119,17 @@ private fun BottomNavItem(
                         imageVector = screen.icon,
                         contentDescription = screen.title,
                         tint = Color.Black,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                     Text(
                         text = " " + screen.title.uppercase(),
                         style = TextStyle(
                             fontWeight = FontWeight.Black,
-                            fontSize = 11.sp,
-                            letterSpacing = 0.5.sp,
+                            fontSize = 10.sp,
+                            letterSpacing = 0.2.sp,
                             color = Color.Black
-                        )
+                        ),
+                        maxLines = 1
                     )
                 }
             }
@@ -151,7 +152,8 @@ private fun BottomNavItem(
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp,
                         color = Color(0xFF64748B)
-                    )
+                    ),
+                    maxLines = 1
                 )
             }
         }
