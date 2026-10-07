@@ -22,22 +22,78 @@ class FinanceViewModel(
     private val _uiState = MutableStateFlow(FinanceUiState(isLoading = true))
     val uiState: StateFlow<FinanceUiState> = _uiState.asStateFlow()
 
+    private val _searchQuery = MutableStateFlow("")
+    private val _selectedCategoryFilter = MutableStateFlow<String?>(null)
+    private val _selectedDateFilter = MutableStateFlow("ALL")
+    private val _selectedFilterTab = MutableStateFlow("ALL")
+
     init {
         observeData()
     }
 
     private fun observeData() {
         viewModelScope.launch {
-            combine(
+            val dataFlow = combine(
                 repository.getAllTransactions(),
                 repository.getAllAccounts(),
                 repository.getAllCategories()
             ) { transactions, accounts, categories ->
-                calculateFinanceTotals(transactions, accounts, categories).copy(isLoading = false)
+                Triple(transactions, accounts, categories)
+            }
+
+            val filterFlow = combine(
+                _searchQuery,
+                _selectedCategoryFilter,
+                _selectedDateFilter,
+                _selectedFilterTab
+            ) { query, cat, date, tab ->
+                FilterParams(query, cat, date, tab)
+            }
+
+            combine(dataFlow, filterFlow) { (transactions, accounts, categories), filter ->
+                calculateFinanceTotals(
+                    transactions = transactions,
+                    accounts = accounts,
+                    categories = categories,
+                    searchQuery = filter.query,
+                    selectedCategoryFilter = filter.category,
+                    selectedDateFilter = filter.dateFilter,
+                    selectedFilterTab = filter.typeFilter
+                ).copy(isLoading = false)
             }.collect { newState ->
                 _uiState.value = newState
             }
         }
+    }
+
+    private data class FilterParams(
+        val query: String,
+        val category: String?,
+        val dateFilter: String,
+        val typeFilter: String
+    )
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun setSelectedCategoryFilter(category: String?) {
+        _selectedCategoryFilter.value = category
+    }
+
+    fun setSelectedDateFilter(dateFilter: String) {
+        _selectedDateFilter.value = dateFilter
+    }
+
+    fun setSelectedFilterTab(tab: String) {
+        _selectedFilterTab.value = tab
+    }
+
+    fun clearFilters() {
+        _searchQuery.value = ""
+        _selectedCategoryFilter.value = null
+        _selectedDateFilter.value = "ALL"
+        _selectedFilterTab.value = "ALL"
     }
 
     fun addTransaction(

@@ -73,6 +73,11 @@ fun FinanceDashboardScreen(
         onReconcileAccount = { account, actualBalance ->
             viewModel.reconcileAccount(account, actualBalance)
         },
+        onSearchQueryChange = { viewModel.setSearchQuery(it) },
+        onFilterTabSelected = { viewModel.setSelectedFilterTab(it) },
+        onDateFilterSelected = { viewModel.setSelectedDateFilter(it) },
+        onCategoryFilterSelected = { viewModel.setSelectedCategoryFilter(it) },
+        onResetFilters = { viewModel.clearFilters() },
         modifier = modifier
     )
 }
@@ -95,6 +100,11 @@ fun FinanceDashboardContent(
     onTransferFunds: (fromAccount: AccountEntity, toAccount: AccountEntity, amount: Double, notes: String, date: String) -> Unit = { _, _, _, _, _ -> },
     onAddAccount: (name: String, type: String, initialBalance: Double) -> Unit = { _, _, _ -> },
     onReconcileAccount: (account: AccountEntity, actualBalance: Double) -> Unit = { _, _ -> },
+    onSearchQueryChange: (String) -> Unit = {},
+    onFilterTabSelected: (String) -> Unit = {},
+    onDateFilterSelected: (String) -> Unit = {},
+    onCategoryFilterSelected: (String?) -> Unit = {},
+    onResetFilters: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -102,18 +112,9 @@ fun FinanceDashboardContent(
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var reconcilingAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
-    var selectedFilterTab by remember { mutableStateOf("ALL") }
 
     val currentMonthText = remember {
         SimpleDateFormat("MMMM yyyy", Locale.forLanguageTag("id-ID")).format(Date()).uppercase()
-    }
-
-    val filteredTransactions = remember(uiState.transactions, selectedFilterTab) {
-        when (selectedFilterTab) {
-            "EXPENSE" -> uiState.transactions.filter { it.type.equals("EXPENSE", ignoreCase = true) }
-            "INCOME" -> uiState.transactions.filter { it.type.equals("INCOME", ignoreCase = true) }
-            else -> uiState.transactions
-        }
     }
 
     Scaffold(
@@ -174,9 +175,17 @@ fun FinanceDashboardContent(
 
             item {
                 DashboardTransactionsSection(
-                    transactions = filteredTransactions,
-                    selectedFilterTab = selectedFilterTab,
-                    onFilterTabSelected = { selectedFilterTab = it },
+                    transactions = uiState.filteredTransactions,
+                    selectedFilterTab = uiState.selectedFilterTab,
+                    onFilterTabSelected = onFilterTabSelected,
+                    searchQuery = uiState.searchQuery,
+                    onSearchQueryChange = onSearchQueryChange,
+                    selectedDateFilter = uiState.selectedDateFilter,
+                    onDateFilterSelected = onDateFilterSelected,
+                    categories = uiState.categories,
+                    selectedCategoryFilter = uiState.selectedCategoryFilter,
+                    onCategoryFilterSelected = onCategoryFilterSelected,
+                    onResetFilters = onResetFilters,
                     onDeleteTransaction = onDeleteTransaction,
                     onEditTransaction = { editingTransaction = it }
                 )
