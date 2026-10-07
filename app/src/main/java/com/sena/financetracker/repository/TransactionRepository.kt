@@ -57,16 +57,55 @@ class TransactionRepository(
 
     suspend fun deleteTransaction(transaction: TransactionEntity) {
         transactionDao.deleteTransaction(transaction.id)
-        val delta = if (transaction.type.equals("INCOME", ignoreCase = true)) {
-            -transaction.amount
+        if (transaction.type.equals("TRANSFER", ignoreCase = true)) {
+            accountDao.adjustBalance(transaction.accountId, transaction.amount)
+            transaction.toAccountId?.let { toId ->
+                accountDao.adjustBalance(toId, -transaction.amount)
+            }
         } else {
-            transaction.amount
+            val delta = if (transaction.type.equals("INCOME", ignoreCase = true)) {
+                -transaction.amount
+            } else {
+                transaction.amount
+            }
+            accountDao.adjustBalance(transaction.accountId, delta)
         }
-        accountDao.adjustBalance(transaction.accountId, delta)
     }
 
     suspend fun deleteTransaction(id: Long) {
         transactionDao.deleteTransaction(id)
+    }
+
+    suspend fun transferFunds(
+        fromAccount: AccountEntity,
+        toAccount: AccountEntity,
+        amount: Double,
+        notes: String = "",
+        date: String
+    ) {
+        require(fromAccount.id != toAccount.id) { "Akun asal dan akun tujuan tidak boleh sama" }
+        require(amount > 0) { "Nominal transfer harus lebih besar dari 0" }
+
+        // 1) Kurangi saldo fromAccount.id sebesar amount
+        accountDao.adjustBalance(fromAccount.id, -amount)
+
+        // 2) Tambah saldo toAccount.id sebesar amount
+        accountDao.adjustBalance(toAccount.id, amount)
+
+        // 3) Catat transaksi transfer ke database
+        val transferTx = TransactionEntity(
+            title = "Transfer ke ${toAccount.name}",
+            amount = amount,
+            type = "TRANSFER",
+            category = "Transfer",
+            date = date,
+            accountId = fromAccount.id,
+            accountName = fromAccount.name,
+            notes = if (notes.isNotBlank()) notes else "Transfer dari ${fromAccount.name} ke ${toAccount.name}",
+            toAccountId = toAccount.id,
+            toAccountName = toAccount.name
+        )
+        transactionDao.insertTransaction(transferTx)
     }
 
     suspend fun updateTransaction(oldTransaction: TransactionEntity, newTransaction: TransactionEntity) {

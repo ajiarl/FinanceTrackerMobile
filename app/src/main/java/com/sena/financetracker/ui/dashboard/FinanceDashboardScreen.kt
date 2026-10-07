@@ -32,6 +32,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.ui.components.NeobrutalFastAddDialog
 import com.sena.financetracker.ui.components.RetroCanvas
@@ -40,6 +41,7 @@ import com.sena.financetracker.ui.dashboard.components.DashboardAccountsSection
 import com.sena.financetracker.ui.dashboard.components.DashboardBalanceSection
 import com.sena.financetracker.ui.dashboard.components.DashboardTransactionsSection
 import com.sena.financetracker.ui.dashboard.components.NeobrutalEditTransactionDialog
+import com.sena.financetracker.ui.dashboard.components.NeobrutalTransferDialog
 import com.sena.financetracker.viewmodel.FinanceUiState
 import com.sena.financetracker.viewmodel.FinanceViewModel
 import java.text.SimpleDateFormat
@@ -60,6 +62,9 @@ fun FinanceDashboardScreen(
         },
         onDeleteTransaction = { viewModel.deleteTransaction(it) },
         onUpdateTransaction = { oldTx, newTx -> viewModel.updateTransaction(oldTx, newTx) },
+        onTransferFunds = { fromAcc, toAcc, amount, notes, date ->
+            viewModel.transferFunds(fromAcc, toAcc, amount, notes, date)
+        },
         modifier = modifier
     )
 }
@@ -79,9 +84,11 @@ fun FinanceDashboardContent(
     ) -> Unit,
     onDeleteTransaction: (TransactionEntity) -> Unit,
     onUpdateTransaction: (oldTransaction: TransactionEntity, newTransaction: TransactionEntity) -> Unit = { _, _ -> },
+    onTransferFunds: (fromAccount: AccountEntity, toAccount: AccountEntity, amount: Double, notes: String, date: String) -> Unit = { _, _, _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    var showTransferDialog by remember { mutableStateOf(false) }
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var selectedFilterTab by remember { mutableStateOf("ALL") }
 
@@ -145,7 +152,10 @@ fun FinanceDashboardContent(
             }
 
             item {
-                DashboardAccountsSection(accounts = uiState.accounts)
+                DashboardAccountsSection(
+                    accounts = uiState.accounts,
+                    onTransferClick = { showTransferDialog = true }
+                )
             }
 
             item {
@@ -166,6 +176,17 @@ fun FinanceDashboardContent(
             categories = uiState.categories,
             onDismiss = { showAddDialog = false },
             onSave = onAddTransaction
+        )
+    }
+
+    if (showTransferDialog) {
+        NeobrutalTransferDialog(
+            accounts = uiState.accounts,
+            onDismiss = { showTransferDialog = false },
+            onTransfer = { fromAcc, toAcc, amount, notes, date ->
+                onTransferFunds(fromAcc, toAcc, amount, notes, date)
+                showTransferDialog = false
+            }
         )
     }
 

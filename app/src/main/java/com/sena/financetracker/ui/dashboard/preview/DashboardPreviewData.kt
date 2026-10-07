@@ -44,6 +44,19 @@ object DashboardPreviewData {
             date = "2026-10-03",
             accountId = 3,
             accountName = "GoPay"
+        ),
+        TransactionEntity(
+            id = 4,
+            title = "Transfer ke GoPay",
+            amount = 150000.0,
+            type = "TRANSFER",
+            category = "Transfer",
+            date = "2026-10-04",
+            accountId = 1,
+            accountName = "BCA",
+            notes = "Topup saldo GoPay",
+            toAccountId = 3,
+            toAccountName = "GoPay"
         )
     )
 

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,6 +37,7 @@ import com.sena.financetracker.ui.components.RetroExpenseDarkRed
 import com.sena.financetracker.ui.components.RetroExpenseRed
 import com.sena.financetracker.ui.components.RetroIncomeDarkGreen
 import com.sena.financetracker.ui.components.RetroIncomeGreen
+import com.sena.financetracker.ui.components.RetroTransferBlue
 import com.sena.financetracker.ui.components.RetroYellow
 import com.sena.financetracker.util.formatRupiah
 
@@ -187,8 +189,28 @@ fun TransactionNeobrutalItem(
     modifier: Modifier = Modifier
 ) {
     val isIncome = transaction.type.equals("INCOME", ignoreCase = true)
-    val accentColor = if (isIncome) RetroIncomeDarkGreen else RetroExpenseDarkRed
-    val amountPrefix = if (isIncome) "+" else "-"
+    val isTransfer = transaction.type.equals("TRANSFER", ignoreCase = true)
+
+    val accentColor = when {
+        isTransfer -> RetroTransferBlue
+        isIncome -> RetroIncomeDarkGreen
+        else -> RetroExpenseDarkRed
+    }
+    val amountPrefix = when {
+        isTransfer -> "⇄ "
+        isIncome -> "+"
+        else -> "-"
+    }
+    val badgeBgColor = when {
+        isTransfer -> RetroTransferBlue
+        isIncome -> RetroIncomeGreen
+        else -> RetroExpenseRed
+    }
+    val iconVector = when {
+        isTransfer -> Icons.Default.SwapHoriz
+        isIncome -> Icons.Default.ArrowUpward
+        else -> Icons.Default.ArrowDownward
+    }
 
     NeobrutalCard(
         modifier = modifier
@@ -210,14 +232,14 @@ fun TransactionNeobrutalItem(
                 modifier = Modifier
                     .size(38.dp)
                     .background(
-                        if (isIncome) RetroIncomeGreen else RetroExpenseRed,
+                        badgeBgColor,
                         RectangleShape
                     )
                     .border(2.dp, Color.Black, RectangleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                    imageVector = iconVector,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)

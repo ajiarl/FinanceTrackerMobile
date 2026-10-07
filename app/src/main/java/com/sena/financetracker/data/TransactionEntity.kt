@@ -9,5 +9,7 @@ data class TransactionEntity(
     val date: String,
     val accountId: Long = 1,
     val accountName: String = "Dompet Tunai",
-    val notes: String = ""
+    val notes: String = "",
+    val toAccountId: Long? = null,
+    val toAccountName: String? = null
 )

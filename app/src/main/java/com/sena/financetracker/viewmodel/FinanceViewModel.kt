@@ -3,6 +3,7 @@ package com.sena.financetracker.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.repository.TransactionRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -10,6 +11,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class FinanceViewModel(
     private val repository: TransactionRepository
@@ -70,6 +74,18 @@ class FinanceViewModel(
     fun updateTransaction(oldTransaction: TransactionEntity, newTransaction: TransactionEntity) {
         viewModelScope.launch {
             repository.updateTransaction(oldTransaction, newTransaction)
+        }
+    }
+
+    fun transferFunds(
+        fromAccount: AccountEntity,
+        toAccount: AccountEntity,
+        amount: Double,
+        notes: String = "",
+        date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+    ) {
+        viewModelScope.launch {
+            repository.transferFunds(fromAccount, toAccount, amount, notes, date)
         }
     }
 

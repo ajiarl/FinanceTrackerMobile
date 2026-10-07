@@ -1,12 +1,17 @@
 package com.sena.financetracker.ui.dashboard.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -15,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,12 +28,14 @@ import androidx.compose.ui.unit.sp
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.ui.components.NeobrutalBadge
 import com.sena.financetracker.ui.components.NeobrutalCard
+import com.sena.financetracker.ui.components.RetroTransferBlue
 import com.sena.financetracker.ui.components.RetroYellow
 import com.sena.financetracker.util.formatRupiah
 
 @Composable
 fun DashboardAccountsSection(
     accounts: List<AccountEntity>,
+    onTransferClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -49,10 +57,44 @@ fun DashboardAccountsSection(
                     color = Color.Black
                 )
             )
-            NeobrutalBadge(
-                text = "${accounts.size} AKUN",
-                backgroundColor = RetroYellow
-            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Tombol Transfer Neobrutal
+                Box(modifier = Modifier.padding(end = 2.dp, bottom = 2.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .offset(x = 2.dp, y = 2.dp)
+                            .background(Color.Black, RectangleShape)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .background(RetroTransferBlue, RectangleShape)
+                            .border(2.dp, Color.Black, RectangleShape)
+                            .clickable(onClick = onTransferClick)
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "TRANSFER",
+                            style = TextStyle(
+                                color = Color.White,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 11.sp,
+                                letterSpacing = 1.sp
+                            )
+                        )
+                    }
+                }
+
+                NeobrutalBadge(
+                    text = "${accounts.size} AKUN",
+                    backgroundColor = RetroYellow
+                )
+            }
         }
 
         // Horizontal Scrollable Accounts List
