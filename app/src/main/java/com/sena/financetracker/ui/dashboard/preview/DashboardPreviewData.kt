@@ -3,6 +3,8 @@ package com.sena.financetracker.ui.dashboard.preview
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import com.sena.financetracker.data.AccountEntity
+import com.sena.financetracker.data.BudgetEntity
+import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.ui.dashboard.FinanceDashboardContent
 import com.sena.financetracker.viewmodel.FinanceUiState
@@ -60,9 +62,27 @@ object DashboardPreviewData {
         )
     )
 
+    val dummyBudgets = listOf(
+        BudgetProgressItem(
+            budget = BudgetEntity(id = 1, name = "Makan Bulanan", category = "Makanan", limitAmount = 1500000.0, period = "2026-10"),
+            spentAmount = 450000.0,
+            percentage = 30,
+            isOver = false,
+            statusLevel = "SAFE"
+        ),
+        BudgetProgressItem(
+            budget = BudgetEntity(id = 2, name = "Tagihan Utilitas", category = "Tagihan", limitAmount = 500000.0, period = "2026-10"),
+            spentAmount = 425000.0,
+            percentage = 85,
+            isOver = false,
+            statusLevel = "WARNING"
+        )
+    )
+
     val dummyUiState = FinanceUiState(
         transactions = dummyTransactions,
         accounts = dummyAccounts,
+        budgets = dummyBudgets,
         totalBalance = 3250000.0,
         totalIncome = 4500000.0,
         totalExpense = 1250000.0,

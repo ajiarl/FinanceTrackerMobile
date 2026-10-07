@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sena.financetracker.data.AccountEntity
+import com.sena.financetracker.data.BudgetProgressItem
+import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.repository.TransactionRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,30 +33,46 @@ class FinanceViewModel(
         observeData()
     }
 
+    private data class FilterParams(
+        val query: String,
+        val category: String?,
+        val dateFilter: String,
+        val typeFilter: String
+    )
+
+    private data class DataBundle(
+        val transactions: List<TransactionEntity>,
+        val accounts: List<AccountEntity>,
+        val categories: List<CategoryEntity>,
+        val budgets: List<BudgetProgressItem>
+    )
+
     private fun observeData() {
+        val filterParamsFlow = combine(
+            _searchQuery,
+            _selectedCategoryFilter,
+            _selectedDateFilter,
+            _selectedFilterTab
+        ) { query, category, dateFilter, typeFilter ->
+            FilterParams(query, category, dateFilter, typeFilter)
+        }
+
+        val dataFlow = combine(
+            repository.getAllTransactions(),
+            repository.getAllAccounts(),
+            repository.getAllCategories(),
+            repository.getBudgetProgress()
+        ) { txs, accs, cats, budgets ->
+            DataBundle(txs, accs, cats, budgets)
+        }
+
         viewModelScope.launch {
-            val dataFlow = combine(
-                repository.getAllTransactions(),
-                repository.getAllAccounts(),
-                repository.getAllCategories()
-            ) { transactions, accounts, categories ->
-                Triple(transactions, accounts, categories)
-            }
-
-            val filterFlow = combine(
-                _searchQuery,
-                _selectedCategoryFilter,
-                _selectedDateFilter,
-                _selectedFilterTab
-            ) { query, cat, date, tab ->
-                FilterParams(query, cat, date, tab)
-            }
-
-            combine(dataFlow, filterFlow) { (transactions, accounts, categories), filter ->
+            combine(dataFlow, filterParamsFlow) { data, filter ->
                 calculateFinanceTotals(
-                    transactions = transactions,
-                    accounts = accounts,
-                    categories = categories,
+                    transactions = data.transactions,
+                    accounts = data.accounts,
+                    categories = data.categories,
+                    budgets = data.budgets,
                     searchQuery = filter.query,
                     selectedCategoryFilter = filter.category,
                     selectedDateFilter = filter.dateFilter,
@@ -65,13 +83,6 @@ class FinanceViewModel(
             }
         }
     }
-
-    private data class FilterParams(
-        val query: String,
-        val category: String?,
-        val dateFilter: String,
-        val typeFilter: String
-    )
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
@@ -96,40 +107,77 @@ class FinanceViewModel(
         _selectedFilterTab.value = "ALL"
     }
 
+    fun addBudget(
+        name: String,
+        category: String,
+        limitAmount: Double,
+        period: String = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+    ) {
+        viewModelScope.launch {
+            try {
+                repository.addBudget(name, category, limitAmount, period)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message)
+            }
+        }
+    }
+
+    fun deleteBudget(id: Long) {
+        viewModelScope.launch {
+            try {
+                repository.deleteBudget(id)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message)
+            }
+        }
+    }
+
     fun addTransaction(
         title: String,
         amount: Double,
         type: String,
         category: String,
-        date: String,
-        accountId: Long = 1,
+        date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
+        accountId: Long = 1L,
         accountName: String = "Dompet Tunai",
         notes: String = ""
     ) {
         viewModelScope.launch {
-            val entity = TransactionEntity(
-                title = title.trim(),
-                amount = amount,
-                type = type.trim().uppercase(),
-                category = category.trim(),
-                date = date.trim(),
-                accountId = accountId,
-                accountName = accountName.trim(),
-                notes = notes.trim()
-            )
-            repository.insertTransaction(entity)
+            try {
+                val newTx = TransactionEntity(
+                    title = title,
+                    amount = amount,
+                    type = type,
+                    category = category,
+                    date = date,
+                    accountId = accountId,
+                    accountName = accountName,
+                    notes = notes
+                )
+                repository.insertTransaction(newTx)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message)
+            }
         }
     }
 
     fun deleteTransaction(transaction: TransactionEntity) {
         viewModelScope.launch {
-            repository.deleteTransaction(transaction)
+            try {
+                repository.deleteTransaction(transaction)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message)
+            }
         }
     }
 
     fun updateTransaction(oldTransaction: TransactionEntity, newTransaction: TransactionEntity) {
         viewModelScope.launch {
-            repository.updateTransaction(oldTransaction, newTransaction)
+            try {
+                repository.updateTransaction(oldTransaction, newTransaction)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message)
+            }
         }
     }
 
@@ -141,13 +189,25 @@ class FinanceViewModel(
         date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     ) {
         viewModelScope.launch {
-            repository.transferFunds(fromAccount, toAccount, amount, notes, date)
+            try {
+                repository.transferFunds(fromAccount, toAccount, amount, notes, date)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message)
+            }
         }
     }
 
-    fun addAccount(name: String, type: String, initialBalance: Double) {
+    fun addAccount(
+        name: String,
+        type: String,
+        initialBalance: Double
+    ) {
         viewModelScope.launch {
-            repository.addAccount(name, type, initialBalance)
+            try {
+                repository.addAccount(name, type, initialBalance)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message)
+            }
         }
     }
 
@@ -157,24 +217,15 @@ class FinanceViewModel(
         date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     ) {
         viewModelScope.launch {
-            repository.reconcileAccount(account, actualBalance, date)
-        }
-    }
-
-    fun deleteTransaction(id: Long) {
-        viewModelScope.launch {
-            val tx = _uiState.value.transactions.find { it.id == id }
-            if (tx != null) {
-                repository.deleteTransaction(tx)
-            } else {
-                repository.deleteTransaction(id)
+            try {
+                repository.reconcileAccount(account, actualBalance, date)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message)
             }
         }
     }
 
-    class Factory(
-        private val repository: TransactionRepository
-    ) : ViewModelProvider.Factory {
+    class Factory(private val repository: TransactionRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(FinanceViewModel::class.java)) {

@@ -3,28 +3,46 @@ package com.sena.financetracker.repository
 import com.sena.financetracker.data.AccountDao
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.AppDatabase
+import com.sena.financetracker.data.BudgetDao
+import com.sena.financetracker.data.BudgetEntity
+import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.CategoryDao
 import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.TransactionDao
 import com.sena.financetracker.data.TransactionEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class TransactionRepository(
     val transactionDao: TransactionDao,
     val accountDao: AccountDao,
-    val categoryDao: CategoryDao
+    val categoryDao: CategoryDao,
+    val budgetDao: BudgetDao = object : BudgetDao {
+        private val _flow = kotlinx.coroutines.flow.MutableStateFlow<List<BudgetEntity>>(emptyList())
+        override fun getAllBudgets(): Flow<List<BudgetEntity>> = _flow
+        override fun getBudgetsByPeriod(period: String): Flow<List<BudgetEntity>> = _flow
+        override suspend fun getBudgetById(id: Long): BudgetEntity? = null
+        override suspend fun insertBudget(budget: BudgetEntity): Long = 0L
+        override suspend fun updateBudget(budget: BudgetEntity) {}
+        override suspend fun deleteBudget(id: Long) {}
+    }
 ) {
     constructor(db: AppDatabase) : this(
         db.transactionDao,
         db.accountDao,
-        db.categoryDao
+        db.categoryDao,
+        db.budgetDao
     )
 
     // Backward-compatible constructor
     constructor(transactionDao: TransactionDao) : this(
         transactionDao = transactionDao,
         accountDao = object : AccountDao {
-            override fun getAllAccounts(): Flow<List<AccountEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
+            override fun getAllAccounts(): Flow<List<AccountEntity>> = flowOf(emptyList())
             override suspend fun getAccountById(id: Long): AccountEntity? = null
             override suspend fun insertAccount(account: AccountEntity): Long = 0L
             override suspend fun updateBalance(id: Long, newBalance: Double) {}
@@ -32,8 +50,8 @@ class TransactionRepository(
             override suspend fun deleteAccount(id: Long) {}
         },
         categoryDao = object : CategoryDao {
-            override fun getAllCategories(): Flow<List<CategoryEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
-            override fun getCategoriesByType(type: String): Flow<List<CategoryEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
+            override fun getAllCategories(): Flow<List<CategoryEntity>> = flowOf(emptyList())
+            override fun getCategoriesByType(type: String): Flow<List<CategoryEntity>> = flowOf(emptyList())
             override suspend fun insertCategory(category: CategoryEntity): Long = 0L
             override suspend fun deleteCategory(id: Long) {}
         }
@@ -43,6 +61,72 @@ class TransactionRepository(
     fun getAllAccounts(): Flow<List<AccountEntity>> = accountDao.getAllAccounts()
     fun getAllCategories(): Flow<List<CategoryEntity>> = categoryDao.getAllCategories()
     fun getCategoriesByType(type: String): Flow<List<CategoryEntity>> = categoryDao.getCategoriesByType(type)
+    fun getAllBudgets(): Flow<List<BudgetEntity>> = budgetDao.getAllBudgets()
+
+    fun getBudgetProgress(
+        period: String = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+    ): Flow<List<BudgetProgressItem>> {
+        return combine(
+            budgetDao.getAllBudgets(),
+            transactionDao.getAllTransactions()
+        ) { budgets, transactions ->
+            val activeBudgets = budgets.filter { it.isActive && (it.period.isEmpty() || it.period == period) }
+            activeBudgets.map { budget ->
+                val spentAmount = transactions
+                    .filter { tx ->
+                        tx.type.equals("EXPENSE", ignoreCase = true) &&
+                        tx.category.equals(budget.category, ignoreCase = true) &&
+                        tx.date.startsWith(period)
+                    }
+                    .sumOf { it.amount }
+
+                val percentage = if (budget.limitAmount > 0) {
+                    ((spentAmount / budget.limitAmount) * 100).toInt()
+                } else {
+                    0
+                }
+
+                val isOver = spentAmount > budget.limitAmount || percentage >= 100
+                val statusLevel = when {
+                    percentage >= 100 -> "CRITICAL"
+                    percentage >= 80 -> "WARNING"
+                    else -> "SAFE"
+                }
+
+                BudgetProgressItem(
+                    budget = budget,
+                    spentAmount = spentAmount,
+                    percentage = percentage,
+                    isOver = isOver,
+                    statusLevel = statusLevel
+                )
+            }
+        }
+    }
+
+    suspend fun addBudget(
+        name: String,
+        category: String,
+        limitAmount: Double,
+        period: String = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+    ): Long {
+        val entity = BudgetEntity(
+            name = name,
+            category = category,
+            limitAmount = limitAmount,
+            period = period,
+            isActive = true
+        )
+        return budgetDao.insertBudget(entity)
+    }
+
+    suspend fun deleteBudget(id: Long) {
+        budgetDao.deleteBudget(id)
+    }
+
+    suspend fun updateBudget(budget: BudgetEntity) {
+        budgetDao.updateBudget(budget)
+    }
 
     suspend fun insertTransaction(transaction: TransactionEntity): Long {
         val insertedId = transactionDao.insertTransaction(transaction)
@@ -86,13 +170,9 @@ class TransactionRepository(
         require(fromAccount.id != toAccount.id) { "Akun asal dan akun tujuan tidak boleh sama" }
         require(amount > 0) { "Nominal transfer harus lebih besar dari 0" }
 
-        // 1) Kurangi saldo fromAccount.id sebesar amount
         accountDao.adjustBalance(fromAccount.id, -amount)
-
-        // 2) Tambah saldo toAccount.id sebesar amount
         accountDao.adjustBalance(toAccount.id, amount)
 
-        // 3) Catat transaksi transfer ke database
         val transferTx = TransactionEntity(
             title = "Transfer ke ${toAccount.name}",
             amount = amount,
@@ -112,7 +192,7 @@ class TransactionRepository(
         name: String,
         type: String,
         initialBalance: Double,
-        date: String = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     ): Long {
         val newAccount = AccountEntity(
             name = name,
@@ -140,15 +220,13 @@ class TransactionRepository(
     suspend fun reconcileAccount(
         account: AccountEntity,
         actualBalance: Double,
-        date: String = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     ) {
         val diff = actualBalance - account.balance
         if (kotlin.math.abs(diff) < 0.001) return
 
-        // 1) Update saldo akun ke actualBalance
         accountDao.updateBalance(account.id, actualBalance)
 
-        // 2) Buat transaksi penyesuaian sistem
         val adjustmentTx = TransactionEntity(
             title = "Penyesuaian Saldo Sistem",
             amount = kotlin.math.abs(diff),
@@ -165,7 +243,6 @@ class TransactionRepository(
     suspend fun updateTransaction(oldTransaction: TransactionEntity, newTransaction: TransactionEntity) {
         transactionDao.updateTransaction(newTransaction)
 
-        // 1. Revert old transaction effect on old account balance
         val oldDelta = if (oldTransaction.type.equals("INCOME", ignoreCase = true)) {
             -oldTransaction.amount
         } else {
@@ -173,7 +250,6 @@ class TransactionRepository(
         }
         accountDao.adjustBalance(oldTransaction.accountId, oldDelta)
 
-        // 2. Apply new transaction effect on new account balance
         val newDelta = if (newTransaction.type.equals("INCOME", ignoreCase = true)) {
             newTransaction.amount
         } else {

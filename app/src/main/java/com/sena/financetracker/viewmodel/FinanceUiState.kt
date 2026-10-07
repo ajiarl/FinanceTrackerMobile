@@ -1,6 +1,7 @@
 package com.sena.financetracker.viewmodel
 
 import com.sena.financetracker.data.AccountEntity
+import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.TransactionEntity
 import java.text.SimpleDateFormat
@@ -12,6 +13,7 @@ data class FinanceUiState(
     val filteredTransactions: List<TransactionEntity> = transactions,
     val accounts: List<AccountEntity> = emptyList(),
     val categories: List<CategoryEntity> = emptyList(),
+    val budgets: List<BudgetProgressItem> = emptyList(),
     val totalBalance: Double = 0.0,
     val totalIncome: Double = 0.0,
     val totalExpense: Double = 0.0,
@@ -32,7 +34,7 @@ fun filterTransactions(
     currentDate: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 ): List<TransactionEntity> {
     val trimmedQuery = searchQuery.trim()
-    val today = if (currentDate.length >= 10) currentDate.take(10) else currentDate
+    val today = currentDate.take(10)
     val thisMonth = if (currentDate.length >= 7) currentDate.take(7) else ""
 
     return transactions.filter { tx ->
@@ -74,6 +76,7 @@ fun calculateFinanceTotals(
     transactions: List<TransactionEntity>,
     accounts: List<AccountEntity> = emptyList(),
     categories: List<CategoryEntity> = emptyList(),
+    budgets: List<BudgetProgressItem> = emptyList(),
     searchQuery: String = "",
     selectedCategoryFilter: String? = null,
     selectedDateFilter: String = "ALL",
@@ -108,6 +111,7 @@ fun calculateFinanceTotals(
         filteredTransactions = filtered,
         accounts = accounts,
         categories = categories,
+        budgets = budgets,
         totalBalance = totalBalance,
         totalIncome = totalIncome,
         totalExpense = totalExpense,

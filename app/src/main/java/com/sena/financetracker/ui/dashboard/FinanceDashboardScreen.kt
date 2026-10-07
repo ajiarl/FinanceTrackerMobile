@@ -39,8 +39,10 @@ import com.sena.financetracker.ui.components.RetroCanvas
 import com.sena.financetracker.ui.components.RetroYellow
 import com.sena.financetracker.ui.dashboard.components.DashboardAccountsSection
 import com.sena.financetracker.ui.dashboard.components.DashboardBalanceSection
+import com.sena.financetracker.ui.dashboard.components.DashboardBudgetsSection
 import com.sena.financetracker.ui.dashboard.components.DashboardTransactionsSection
 import com.sena.financetracker.ui.dashboard.components.NeobrutalAddAccountDialog
+import com.sena.financetracker.ui.dashboard.components.NeobrutalAddBudgetDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalEditTransactionDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalReconcileDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalTransferDialog
@@ -73,6 +75,12 @@ fun FinanceDashboardScreen(
         onReconcileAccount = { account, actualBalance ->
             viewModel.reconcileAccount(account, actualBalance)
         },
+        onAddBudget = { name, category, limitAmount ->
+            viewModel.addBudget(name, category, limitAmount)
+        },
+        onDeleteBudget = { id ->
+            viewModel.deleteBudget(id)
+        },
         onSearchQueryChange = { viewModel.setSearchQuery(it) },
         onFilterTabSelected = { viewModel.setSelectedFilterTab(it) },
         onDateFilterSelected = { viewModel.setSelectedDateFilter(it) },
@@ -94,12 +102,14 @@ fun FinanceDashboardContent(
         accountId: Long,
         accountName: String,
         notes: String
-    ) -> Unit,
-    onDeleteTransaction: (TransactionEntity) -> Unit,
+    ) -> Unit = { _, _, _, _, _, _, _, _ -> },
+    onDeleteTransaction: (TransactionEntity) -> Unit = {},
     onUpdateTransaction: (oldTransaction: TransactionEntity, newTransaction: TransactionEntity) -> Unit = { _, _ -> },
     onTransferFunds: (fromAccount: AccountEntity, toAccount: AccountEntity, amount: Double, notes: String, date: String) -> Unit = { _, _, _, _, _ -> },
     onAddAccount: (name: String, type: String, initialBalance: Double) -> Unit = { _, _, _ -> },
     onReconcileAccount: (account: AccountEntity, actualBalance: Double) -> Unit = { _, _ -> },
+    onAddBudget: (name: String, category: String, limitAmount: Double) -> Unit = { _, _, _ -> },
+    onDeleteBudget: (Long) -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
     onFilterTabSelected: (String) -> Unit = {},
     onDateFilterSelected: (String) -> Unit = {},
@@ -110,6 +120,7 @@ fun FinanceDashboardContent(
     var showAddDialog by remember { mutableStateOf(false) }
     var showTransferDialog by remember { mutableStateOf(false) }
     var showAddAccountDialog by remember { mutableStateOf(false) }
+    var showAddBudgetDialog by remember { mutableStateOf(false) }
     var reconcilingAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
 
@@ -174,6 +185,14 @@ fun FinanceDashboardContent(
             }
 
             item {
+                DashboardBudgetsSection(
+                    budgets = uiState.budgets,
+                    onAddBudgetClick = { showAddBudgetDialog = true },
+                    onDeleteBudgetClick = onDeleteBudget
+                )
+            }
+
+            item {
                 DashboardTransactionsSection(
                     transactions = uiState.filteredTransactions,
                     selectedFilterTab = uiState.selectedFilterTab,
@@ -230,6 +249,17 @@ fun FinanceDashboardContent(
             onReconcile = { account, actualBalance ->
                 onReconcileAccount(account, actualBalance)
                 reconcilingAccount = null
+            }
+        )
+    }
+
+    if (showAddBudgetDialog) {
+        NeobrutalAddBudgetDialog(
+            categories = uiState.categories,
+            onDismiss = { showAddBudgetDialog = false },
+            onSaveBudget = { name, category, limitAmount ->
+                onAddBudget(name, category, limitAmount)
+                showAddBudgetDialog = false
             }
         )
     }

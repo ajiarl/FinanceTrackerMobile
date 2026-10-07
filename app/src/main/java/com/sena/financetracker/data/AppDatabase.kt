@@ -22,7 +22,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
 
     companion object {
         const val DATABASE_NAME = "finance_tracker.db"
-        const val DATABASE_VERSION = 2
+        const val DATABASE_VERSION = 3
 
         // Table Transactions
         const val TABLE_TRANSACTIONS = "transactions"
@@ -50,6 +50,15 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         const val COL_CAT_TYPE = "type"
         const val COL_CAT_COLOR = "color"
 
+        // Table Budgets
+        const val TABLE_BUDGETS = "budgets"
+        const val COL_BUDGET_ID = "id"
+        const val COL_BUDGET_NAME = "name"
+        const val COL_BUDGET_CATEGORY = "category"
+        const val COL_BUDGET_LIMIT = "limit_amount"
+        const val COL_BUDGET_PERIOD = "period"
+        const val COL_BUDGET_IS_ACTIVE = "is_active"
+
         @Volatile
         private var instance: AppDatabase? = null
 
@@ -64,6 +73,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
     private val _transactionsFlow = MutableStateFlow<List<TransactionEntity>>(emptyList())
     private val _accountsFlow = MutableStateFlow<List<AccountEntity>>(emptyList())
     private val _categoriesFlow = MutableStateFlow<List<CategoryEntity>>(emptyList())
+    private val _budgetsFlow = MutableStateFlow<List<BudgetEntity>>(emptyList())
 
     init {
         dbScope.launch {
@@ -110,14 +120,29 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             """.trimIndent()
         )
 
+        createBudgetsTable(db)
         seedInitialData(db)
     }
 
+    private fun createBudgetsTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_BUDGETS (
+                $COL_BUDGET_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                $COL_BUDGET_NAME TEXT NOT NULL,
+                $COL_BUDGET_CATEGORY TEXT NOT NULL,
+                $COL_BUDGET_LIMIT REAL NOT NULL,
+                $COL_BUDGET_PERIOD TEXT NOT NULL,
+                $COL_BUDGET_IS_ACTIVE INTEGER NOT NULL DEFAULT 1
+            )
+            """.trimIndent()
+        )
+    }
+
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_TRANSACTIONS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_ACCOUNTS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_CATEGORIES")
-        onCreate(db)
+        if (oldVersion < 3) {
+            createBudgetsTable(db)
+        }
     }
 
     private fun seedInitialData(db: SQLiteDatabase) {
@@ -164,6 +189,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         refreshTransactionsFlowInternal()
         refreshAccountsFlowInternal()
         refreshCategoriesFlowInternal()
+        refreshBudgetsFlowInternal()
     }
 
     private fun refreshTransactionsFlowInternal() {
@@ -270,6 +296,42 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             }
         }
         _categoriesFlow.value = list
+    }
+
+    private fun refreshBudgetsFlowInternal() {
+        val list = mutableListOf<BudgetEntity>()
+        val db = readableDatabase
+        val cursor = db.query(
+            TABLE_BUDGETS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "$COL_BUDGET_ID ASC"
+        )
+        cursor.use { c ->
+            val idIdx = c.getColumnIndexOrThrow(COL_BUDGET_ID)
+            val nameIdx = c.getColumnIndexOrThrow(COL_BUDGET_NAME)
+            val catIdx = c.getColumnIndexOrThrow(COL_BUDGET_CATEGORY)
+            val limitIdx = c.getColumnIndexOrThrow(COL_BUDGET_LIMIT)
+            val periodIdx = c.getColumnIndexOrThrow(COL_BUDGET_PERIOD)
+            val activeIdx = c.getColumnIndexOrThrow(COL_BUDGET_IS_ACTIVE)
+
+            while (c.moveToNext()) {
+                list.add(
+                    BudgetEntity(
+                        id = c.getLong(idIdx),
+                        name = c.getString(nameIdx),
+                        category = c.getString(catIdx),
+                        limitAmount = c.getDouble(limitIdx),
+                        period = c.getString(periodIdx),
+                        isActive = c.getInt(activeIdx) == 1
+                    )
+                )
+            }
+        }
+        _budgetsFlow.value = list
     }
 
     // ── TransactionDao Implementation ─────────────────────────────────────────
@@ -456,6 +518,79 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             val db = writableDatabase
             db.delete(TABLE_CATEGORIES, "$COL_CAT_ID = ?", arrayOf(id.toString()))
             refreshCategoriesFlowInternal()
+            Unit
+        }
+    }
+
+    // ── BudgetDao Implementation ──────────────────────────────────────────────
+    val budgetDao: BudgetDao = object : BudgetDao {
+        override fun getAllBudgets(): Flow<List<BudgetEntity>> {
+            return _budgetsFlow.asStateFlow()
+        }
+
+        override fun getBudgetsByPeriod(period: String): Flow<List<BudgetEntity>> {
+            return _budgetsFlow.map { list ->
+                list.filter { it.period == period }
+            }
+        }
+
+        override suspend fun getBudgetById(id: Long): BudgetEntity? = withContext(Dispatchers.IO) {
+            val db = readableDatabase
+            val cursor = db.query(
+                TABLE_BUDGETS,
+                null,
+                "$COL_BUDGET_ID = ?",
+                arrayOf(id.toString()),
+                null,
+                null,
+                null
+            )
+            cursor.use { c ->
+                if (c.moveToFirst()) {
+                    BudgetEntity(
+                        id = c.getLong(c.getColumnIndexOrThrow(COL_BUDGET_ID)),
+                        name = c.getString(c.getColumnIndexOrThrow(COL_BUDGET_NAME)),
+                        category = c.getString(c.getColumnIndexOrThrow(COL_BUDGET_CATEGORY)),
+                        limitAmount = c.getDouble(c.getColumnIndexOrThrow(COL_BUDGET_LIMIT)),
+                        period = c.getString(c.getColumnIndexOrThrow(COL_BUDGET_PERIOD)),
+                        isActive = c.getInt(c.getColumnIndexOrThrow(COL_BUDGET_IS_ACTIVE)) == 1
+                    )
+                } else null
+            }
+        }
+
+        override suspend fun insertBudget(budget: BudgetEntity): Long = withContext(Dispatchers.IO) {
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put(COL_BUDGET_NAME, budget.name)
+                put(COL_BUDGET_CATEGORY, budget.category)
+                put(COL_BUDGET_LIMIT, budget.limitAmount)
+                put(COL_BUDGET_PERIOD, budget.period)
+                put(COL_BUDGET_IS_ACTIVE, if (budget.isActive) 1 else 0)
+            }
+            val id = db.insert(TABLE_BUDGETS, null, values)
+            refreshBudgetsFlowInternal()
+            id
+        }
+
+        override suspend fun updateBudget(budget: BudgetEntity) = withContext(Dispatchers.IO) {
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put(COL_BUDGET_NAME, budget.name)
+                put(COL_BUDGET_CATEGORY, budget.category)
+                put(COL_BUDGET_LIMIT, budget.limitAmount)
+                put(COL_BUDGET_PERIOD, budget.period)
+                put(COL_BUDGET_IS_ACTIVE, if (budget.isActive) 1 else 0)
+            }
+            db.update(TABLE_BUDGETS, values, "$COL_BUDGET_ID = ?", arrayOf(budget.id.toString()))
+            refreshBudgetsFlowInternal()
+            Unit
+        }
+
+        override suspend fun deleteBudget(id: Long) = withContext(Dispatchers.IO) {
+            val db = writableDatabase
+            db.delete(TABLE_BUDGETS, "$COL_BUDGET_ID = ?", arrayOf(id.toString()))
+            refreshBudgetsFlowInternal()
             Unit
         }
     }
