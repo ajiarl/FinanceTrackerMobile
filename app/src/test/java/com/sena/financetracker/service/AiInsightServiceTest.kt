@@ -3,24 +3,23 @@ package com.sena.financetracker.service
 import com.sena.financetracker.data.TransactionEntity
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * Unit test untuk AiInsightService:
- * - Pembentukan user prompt & format string
- * - Pembentukan payload JSON untuk model openai/gpt-oss-120b
+ * - Pembentukan user prompt & grounding rincian 3 kategori teratas
+ * - Pembentukan payload JSON untuk model openai/gpt-oss-120b dengan persona Pak Hemat & panggilan 'Aji'
  * - Parsing respons JSON completion
- * - Validasi aturan generator local fallback (defisit, saving rate, zero income)
+ * - Validasi aturan generator local fallback (boncos zero income, defisit, saving rate, sapaan 'Ji')
  * - Eksekusi getFinancialInsight dengan fallback saat api key kosong
  */
 class AiInsightServiceTest {
 
     @Test
     fun buildGroqPayloadJson_createsValidChatCompletionsStructure() {
-        val userPrompt = "Evaluasi transaksi ini, Pak!"
+        val userPrompt = "Evaluasi keuangan Aji ini, Pak!"
         val jsonString = AiInsightService.buildGroqPayloadJson(userPrompt)
 
         assertTrue(jsonString.contains("\"model\":\"openai/gpt-oss-120b\""))
@@ -28,8 +27,10 @@ class AiInsightServiceTest {
         assertTrue(jsonString.contains("\"max_tokens\":350"))
         assertTrue(jsonString.contains("\"role\":\"system\""))
         assertTrue(jsonString.contains("Pak Hemat"))
+        assertTrue(jsonString.contains("Aji"))
+        assertTrue(jsonString.contains("GROUNDING"))
         assertTrue(jsonString.contains("\"role\":\"user\""))
-        assertTrue(jsonString.contains("Evaluasi transaksi ini, Pak!"))
+        assertTrue(jsonString.contains("Evaluasi keuangan Aji ini, Pak!"))
     }
 
     @Test
@@ -42,7 +43,7 @@ class AiInsightServiceTest {
                   "index": 0,
                   "message": {
                     "role": "assistant",
-                    "content": "Pengeluaran kopi kamu 800 ribu? Itu lambung aman, dompet kritis bos!"
+                    "content": "Pengeluaran kopi kamu 800 ribu? Itu lambung aman, dompet kritis Ji!"
                   },
                   "finish_reason": "stop"
                 }
@@ -51,7 +52,7 @@ class AiInsightServiceTest {
         """.trimIndent()
 
         val parsed = AiInsightService.parseGroqResponse(mockApiResponse)
-        assertEquals("Pengeluaran kopi kamu 800 ribu? Itu lambung aman, dompet kritis bos!", parsed)
+        assertEquals("Pengeluaran kopi kamu 800 ribu? Itu lambung aman, dompet kritis Ji!", parsed)
     }
 
     @Test
@@ -64,63 +65,83 @@ class AiInsightServiceTest {
     }
 
     @Test
-    fun buildUserPrompt_containsAccurateFinancialFigures() {
+    fun buildUserPrompt_containsTopThreeCategoriesAndGroundedFigures() {
+        val topCategories = listOf(
+            "Makanan" to 1_500_000.0,
+            "Tagihan" to 800_000.0,
+            "Hiburan" to 400_000.0
+        )
+
         val prompt = AiInsightService.buildUserPrompt(
             totalIncome = 5_000_000.0,
-            totalExpense = 2_000_000.0,
-            highestCategory = "Makanan",
-            highestCategoryAmount = 1_200_000.0,
-            txCount = 15,
+            totalExpense = 2_700_000.0,
+            topCategories = topCategories,
+            txCount = 20,
             periodTitle = "Bulan Ini"
         )
 
-        assertTrue(prompt.contains("Bulan Ini"))
+        assertTrue(prompt.contains("Ringkasan Keuangan Aji (Bulan Ini):"))
         assertTrue(prompt.contains("5.000.000") || prompt.contains("5000000"))
-        assertTrue(prompt.contains("2.000.000") || prompt.contains("2000000"))
-        assertTrue(prompt.contains("60%")) // 3jt / 5jt = 60% saving rate
+        assertTrue(prompt.contains("2.700.000") || prompt.contains("2700000"))
+        assertTrue(prompt.contains("46%")) // (5jt - 2.7jt) / 5jt = 46%
         assertTrue(prompt.contains("Makanan"))
-        assertTrue(prompt.contains("15 transaksi"))
+        assertTrue(prompt.contains("Tagihan"))
+        assertTrue(prompt.contains("Hiburan"))
+        assertTrue(prompt.contains("20 transaksi"))
     }
 
     @Test
-    fun generateLocalFallbackInsight_whenZeroIncomeAndHasExpense_returnsWarning() {
+    fun generateLocalFallbackInsight_whenZeroIncomeAndHasExpense_returnsWarningWithAjiPersona() {
+        val topCategories = listOf(
+            "Hiburan" to 500_000.0,
+            "Kopi" to 150_000.0
+        )
+
         val insight = AiInsightService.generateLocalFallbackInsight(
             totalIncome = 0.0,
-            totalExpense = 750_000.0,
-            highestExpenseCategory = "Hiburan",
-            highestExpenseAmount = 500_000.0,
+            totalExpense = 650_000.0,
+            topCategories = topCategories,
             periodTitle = "Bulan Ini"
         )
 
-        assertTrue(insight.contains("belum ada pemasukan"))
+        assertTrue(insight.contains("Ji,"))
+        assertTrue(insight.contains("boncos"))
         assertTrue(insight.contains("Hiburan"))
     }
 
     @Test
-    fun generateLocalFallbackInsight_whenDeficit_returnsDeficitWarning() {
+    fun generateLocalFallbackInsight_whenDeficit_returnsDeficitWarningWithAjiPersona() {
+        val topCategories = listOf(
+            "Elektronik" to 3_000_000.0,
+            "Hobi" to 1_500_000.0
+        )
+
         val insight = AiInsightService.generateLocalFallbackInsight(
             totalIncome = 3_000_000.0,
             totalExpense = 4_500_000.0,
-            highestExpenseCategory = "Elektronik",
-            highestExpenseAmount = 3_000_000.0,
+            topCategories = topCategories,
             periodTitle = "Bulan Ini"
         )
 
-        assertTrue(insight.contains("Defisit") || insight.contains("jebol"))
+        assertTrue(insight.contains("Defisit jebol, Ji!"))
         assertTrue(insight.contains("Elektronik"))
     }
 
     @Test
-    fun generateLocalFallbackInsight_whenHighSavingRate_returnsPraise() {
+    fun generateLocalFallbackInsight_whenHighSavingRate_returnsPraiseWithAjiPersona() {
+        val topCategories = listOf(
+            "Kebutuhan Pokok" to 1_500_000.0
+        )
+
         val insight = AiInsightService.generateLocalFallbackInsight(
             totalIncome = 10_000_000.0,
-            totalExpense = 2_000_000.0,
-            highestExpenseCategory = "Kebutuhan Pokok",
-            highestExpenseAmount = 1_500_000.0,
+            totalExpense = 1_500_000.0,
+            topCategories = topCategories,
             periodTitle = "Bulan Ini"
         )
 
-        assertTrue(insight.contains("Mantap") || insight.contains("surplus"))
+        assertTrue(insight.contains("Gokil Ji,"))
+        assertTrue(insight.contains("85%"))
     }
 
     @Test
@@ -138,7 +159,7 @@ class AiInsightServiceTest {
 
         assertNotNull(result)
         assertTrue(result.isNotBlank())
-        assertTrue(result.contains("Makanan") || result.contains("saving rate") || result.contains("Mantap"))
+        assertTrue(result.contains("Ji") || result.contains("Makanan"))
     }
 
     @Test
@@ -150,5 +171,6 @@ class AiInsightServiceTest {
         )
 
         assertTrue(result.contains("Belum ada transaksi"))
+        assertTrue(result.contains("Ji"))
     }
 }

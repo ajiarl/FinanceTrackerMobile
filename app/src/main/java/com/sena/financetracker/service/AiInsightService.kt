@@ -24,7 +24,7 @@ object AiInsightService {
     private const val READ_TIMEOUT_MS = 10_000
 
     private const val SYSTEM_PROMPT =
-        "Kamu adalah Pak Hemat, konsultan keuangan pribadi Neobrutalisme yang santai, sarkas-kocak, to-the-point, dan matematis tajam. Evaluasi rasio cashflow, saving rate, dan kebocoran dana dalam 3-4 kalimat padat."
+        "Kamu adalah Pak Hemat, konsultan keuangan pribadi Aji yang santai, ceplas-ceplos gaya Indonesia/Jaksel, sarkas-kocak, to-the-point, dan matematis tajam tanpa basa-basi formal atau filler AI. Panggil user 'Aji'. Evaluasi rasio cashflow, saving rate, dan kebocoran dana dalam 3-4 kalimat padat. ATURAN GROUNDING KETAT: Kamu WAJIB mengacu 100% pada angka pemasukan, pengeluaran, saving rate %, dan nama kategori riil yang diberikan pada prompt. DILARANG KERAS mengarang, mengubah nominal, atau menyebut kategori fiktif di luar data."
 
     /**
      * Meminta analisis AI dari Groq Cloud secara background IO dengan fallback aturan lokal jika gagal / offline.
@@ -35,7 +35,7 @@ object AiInsightService {
         apiKey: String = BuildConfig.GROQ_API_KEY
     ): String = withContext(Dispatchers.IO) {
         if (transactions.isEmpty()) {
-            return@withContext "Belum ada transaksi di $periodTitle nih, bos. Catat dulu pengeluaran dan pemasukanmu biar Pak Hemat bisa bedah kas kamu!"
+            return@withContext "Belum ada transaksi di $periodTitle nih, Ji. Catat dulu pengeluaran dan pemasukanmu biar Pak Hemat bisa bedah kas kamu!"
         }
 
         val totalIncome = transactions.filter { it.type.equals("INCOME", ignoreCase = true) }.sumOf { it.amount }
@@ -47,16 +47,16 @@ object AiInsightService {
             .toList()
             .sortedByDescending { it.second }
 
-        val highestExpenseCategory = categoryBreakdown.firstOrNull()?.first ?: "Tidak ada"
-        val highestExpenseAmount = categoryBreakdown.firstOrNull()?.second ?: 0.0
+        val topCategories = categoryBreakdown.take(3)
+        val highestExpenseCategory = topCategories.firstOrNull()?.first ?: "Tidak ada"
+        val highestExpenseAmount = topCategories.firstOrNull()?.second ?: 0.0
 
         // Jika API Key kosong / tidak diset, langsung gunakan fallback aturan lokal
         if (apiKey.isBlank()) {
             return@withContext generateLocalFallbackInsight(
                 totalIncome = totalIncome,
                 totalExpense = totalExpense,
-                highestExpenseCategory = highestExpenseCategory,
-                highestExpenseAmount = highestExpenseAmount,
+                topCategories = topCategories,
                 periodTitle = periodTitle
             )
         }
@@ -65,8 +65,7 @@ object AiInsightService {
             val userPrompt = buildUserPrompt(
                 totalIncome = totalIncome,
                 totalExpense = totalExpense,
-                highestCategory = highestExpenseCategory,
-                highestCategoryAmount = highestExpenseAmount,
+                topCategories = topCategories,
                 txCount = transactions.size,
                 periodTitle = periodTitle
             )
@@ -81,8 +80,7 @@ object AiInsightService {
                 generateLocalFallbackInsight(
                     totalIncome = totalIncome,
                     totalExpense = totalExpense,
-                    highestExpenseCategory = highestExpenseCategory,
-                    highestExpenseAmount = highestExpenseAmount,
+                    topCategories = topCategories,
                     periodTitle = periodTitle
                 )
             }
@@ -91,8 +89,7 @@ object AiInsightService {
             generateLocalFallbackInsight(
                 totalIncome = totalIncome,
                 totalExpense = totalExpense,
-                highestExpenseCategory = highestExpenseCategory,
-                highestExpenseAmount = highestExpenseAmount,
+                topCategories = topCategories,
                 periodTitle = periodTitle
             )
         }
@@ -213,13 +210,12 @@ object AiInsightService {
     }
 
     /**
-     * Membentuk prompt ringkasan data transaksi untuk AI.
+     * Membentuk prompt ringkasan data transaksi untuk AI dengan rincian 3 kategori teratas.
      */
     fun buildUserPrompt(
         totalIncome: Double,
         totalExpense: Double,
-        highestCategory: String,
-        highestCategoryAmount: Double,
+        topCategories: List<Pair<String, Double>>,
         txCount: Int,
         periodTitle: String
     ): String {
@@ -227,49 +223,68 @@ object AiInsightService {
         val netSavings = totalIncome - totalExpense
         val savingRate = if (totalIncome > 0) ((netSavings / totalIncome) * 100).toInt() else 0
 
+        val categoryLines = if (topCategories.isNotEmpty()) {
+            topCategories.mapIndexed { idx, pair ->
+                "  ${idx + 1}. ${pair.first}: Rp ${rupiahFormat.format(pair.second.toLong())}"
+            }.joinToString("\n")
+        } else {
+            "  (Belum ada pengeluaran)"
+        }
+
         return """
-            Ringkasan Keuangan ($periodTitle):
+            Ringkasan Keuangan Aji ($periodTitle):
             - Total Pemasukan: Rp ${rupiahFormat.format(totalIncome.toLong())}
             - Total Pengeluaran: Rp ${rupiahFormat.format(totalExpense.toLong())}
             - Sisa Kas / Tabungan Bersih: Rp ${rupiahFormat.format(netSavings.toLong())}
             - Rasio Tabungan (Saving Rate): $savingRate%
-            - Kategori Pengeluaran Terbesar: $highestCategory (Rp ${rupiahFormat.format(highestCategoryAmount.toLong())})
+            - Top Kategori Pengeluaran:
+            $categoryLines
             - Total Catatan Transaksi: $txCount transaksi
 
-            Berikan penilaian tajam, evaluasi kebocoran dana, dan instruksi penghematan konkret gaya Neobrutalisme Pak Hemat.
+            Evaluasi keuangan Aji secara blak-blakan, matematis, sarkas-kocak, dan tanpa basa-basi formal. Soroti pos pengeluaran di atas dan kasih instruksi konkret agar dompet Aji tetap sehat!
         """.trimIndent()
     }
 
     /**
-     * Generator analisis aturan lokal berbasis kalkulasi rasio finansial deterministik.
+     * Generator analisis aturan lokal berbasis kalkulasi rasio finansial deterministik dengan persona Pak Hemat.
      * Dipanggil saat koneksi offline, kuota habis, atau terjadi error jaringan.
      */
     fun generateLocalFallbackInsight(
         totalIncome: Double,
         totalExpense: Double,
-        highestExpenseCategory: String,
-        highestExpenseAmount: Double,
+        topCategories: List<Pair<String, Double>>,
         periodTitle: String
     ): String {
         val rupiahFormat = NumberFormat.getNumberInstance(Locale.GERMANY)
         val netSavings = totalIncome - totalExpense
         val savingRate = if (totalIncome > 0) ((netSavings / totalIncome) * 100).toInt() else -100
 
+        val topCategoryName = topCategories.firstOrNull()?.first ?: "pos belanja"
+        val topCategoryAmount = topCategories.firstOrNull()?.second ?: 0.0
+
+        val breakdownSnippet = if (topCategories.size > 1) {
+            " Tiga pos penyedot utama: " + topCategories.joinToString(", ") {
+                "${it.first} (Rp ${rupiahFormat.format(it.second.toLong())})"
+            } + "."
+        } else {
+            ""
+        }
+
         return when {
             totalIncome <= 0 && totalExpense > 0 -> {
-                "Waduh bos, di $periodTitle kamu keluar uang Rp ${rupiahFormat.format(totalExpense.toLong())} tapi belum ada pemasukan sama sekali! Kategori '$highestExpenseCategory' jadi biang keladi kebocoran. Rem dulu jajan kamu sebelum dompet amblas!"
+                "Ji, di $periodTitle kamu udah boncos Rp ${rupiahFormat.format(totalExpense.toLong())} padahal pemasukan masih nol melompong! Pos '$topCategoryName' paling getol ngabisin dana ($breakdownSnippet). Rem darurat sekarang sebelum kas kamu sekarat total!"
             }
             totalIncome > 0 && totalExpense > totalIncome -> {
-                "Defisit parah! Pengeluaranmu (Rp ${rupiahFormat.format(totalExpense.toLong())}) jebol melebihi pemasukan dengan minus Rp ${rupiahFormat.format((-netSavings).toLong())}. Kebocoran terbesar di pos '$highestExpenseCategory' (Rp ${rupiahFormat.format(highestExpenseAmount.toLong())}). Pangkas kebutuhan sekunder sekarang juga!"
+                "Defisit jebol, Ji! Pengeluaranmu Rp ${rupiahFormat.format(totalExpense.toLong())} udah numpahin pemasukan minus Rp ${rupiahFormat.format((-netSavings).toLong())}. Kategori '$topCategoryName' (Rp ${rupiahFormat.format(topCategoryAmount.toLong())}) jadi biang keroknya.$breakdownSnippet Jangan sok sultan dulu, pangkas pos sekunder hari ini juga!"
             }
             savingRate in 0..19 -> {
-                "Saving rate kamu cuma $savingRate% di $periodTitle, tipis banget kayak tisu basah! Pos '$highestExpenseCategory' menyedot Rp ${rupiahFormat.format(highestExpenseAmount.toLong())}. Evaluasi pos belanja ini biar ada sisa dana darurat yang waras."
+                "Saving rate kamu cuma $savingRate% di $periodTitle, tipis banget kayak tisu basah, Ji! Duitmu habis kesedot pos '$topCategoryName' (Rp ${rupiahFormat.format(topCategoryAmount.toLong())}).$breakdownSnippet Evaluasi jajan impulsif biar ada sisa dana darurat yang waras."
             }
             savingRate in 20..49 -> {
-                "Arus kas tergolong aman dengan saving rate $savingRate% (tabungan bersih Rp ${rupiahFormat.format(netSavings.toLong())}). Namun waspadai pos '$highestExpenseCategory' yang sudah tembus Rp ${rupiahFormat.format(highestExpenseAmount.toLong())}. Pertahankan disiplin ini bos!"
+                "Cashflow kamu masih napas aman dengan saving rate $savingRate% (tabungan bersih Rp ${rupiahFormat.format(netSavings.toLong())}), Ji. Tapi awas pos '$topCategoryName' udah nyentuh Rp ${rupiahFormat.format(topCategoryAmount.toLong())}.$breakdownSnippet Jangan lengah biar grafik tabunganmu gak melorot!"
             }
             else -> {
-                "Mantap jiwa! Saving rate kamu tembus $savingRate% di $periodTitle dengan surplus Rp ${rupiahFormat.format(netSavings.toLong())}. Pengeluaran terbesar di '$highestExpenseCategory' masih dalam batas wajar. Tetap konsisten begini, bos!"
+                "Gokil Ji, saving rate kamu tembus $savingRate% di $periodTitle dengan surplus Rp ${rupiahFormat.format(netSavings.toLong())}! Pengeluaran terbesar di '$topCategoryName' masih terkontrol rapi.$breakdownSnippet Disiplin kayak gini dipertahankan, bentar lagi kebeli masa depan tenang!"
             }
         }
     }
