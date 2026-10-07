@@ -8,10 +8,13 @@ import com.sena.financetracker.data.BudgetEntity
 import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.CategoryDao
 import com.sena.financetracker.data.CategoryEntity
+import com.sena.financetracker.data.NotificationDao
+import com.sena.financetracker.data.NotificationEntity
 import com.sena.financetracker.data.TransactionDao
 import com.sena.financetracker.data.TransactionEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -37,6 +40,16 @@ class TransactionRepository(
         override suspend fun insertBudget(budget: BudgetEntity): Long = 0L
         override suspend fun updateBudget(budget: BudgetEntity) {}
         override suspend fun deleteBudget(id: Long) {}
+    },
+    val notificationDao: NotificationDao = object : NotificationDao {
+        private val _flow = kotlinx.coroutines.flow.MutableStateFlow<List<NotificationEntity>>(emptyList())
+        override fun getAllNotifications(): Flow<List<NotificationEntity>> = _flow
+        override fun getUnreadCount(): Flow<Int> = flowOf(0)
+        override suspend fun insertNotification(notification: NotificationEntity): Long = 0L
+        override suspend fun markAsRead(id: Long) {}
+        override suspend fun markAllAsRead() {}
+        override suspend fun clearAllNotifications() {}
+        override suspend fun deleteNotification(id: Long) {}
     }
 ) {
     /**
@@ -46,7 +59,8 @@ class TransactionRepository(
         db.transactionDao,
         db.accountDao,
         db.categoryDao,
-        db.budgetDao
+        db.budgetDao,
+        db.notificationDao
     )
 
     /**
@@ -69,6 +83,57 @@ class TransactionRepository(
             override suspend fun updateCategory(category: CategoryEntity): Int = 0
             override suspend fun deleteCategory(id: Long): Int = 0
             override suspend fun getCategoryById(id: Long): CategoryEntity? = null
+        },
+        budgetDao = object : BudgetDao {
+            private val _flow = kotlinx.coroutines.flow.MutableStateFlow<List<BudgetEntity>>(emptyList())
+            override fun getAllBudgets(): Flow<List<BudgetEntity>> = _flow
+            override fun getBudgetsByPeriod(period: String): Flow<List<BudgetEntity>> = _flow
+            override suspend fun getBudgetById(id: Long): BudgetEntity? = null
+            override suspend fun insertBudget(budget: BudgetEntity): Long = 0L
+            override suspend fun updateBudget(budget: BudgetEntity) {}
+            override suspend fun deleteBudget(id: Long) {}
+        },
+        notificationDao = object : NotificationDao {
+            private val _flow = kotlinx.coroutines.flow.MutableStateFlow<List<NotificationEntity>>(emptyList())
+            override fun getAllNotifications(): Flow<List<NotificationEntity>> = _flow
+            override fun getUnreadCount(): Flow<Int> = flowOf(0)
+            override suspend fun insertNotification(notification: NotificationEntity): Long = 0L
+            override suspend fun markAsRead(id: Long) {}
+            override suspend fun markAllAsRead() {}
+            override suspend fun clearAllNotifications() {}
+            override suspend fun deleteNotification(id: Long) {}
+        }
+    )
+
+    /**
+     * Konstruktor praktis untuk testing unit dengan fake TransactionDao, AccountDao, dan CategoryDao.
+     */
+    constructor(
+        transactionDao: TransactionDao,
+        accountDao: AccountDao,
+        categoryDao: CategoryDao
+    ) : this(
+        transactionDao = transactionDao,
+        accountDao = accountDao,
+        categoryDao = categoryDao,
+        budgetDao = object : BudgetDao {
+            private val _flow = kotlinx.coroutines.flow.MutableStateFlow<List<BudgetEntity>>(emptyList())
+            override fun getAllBudgets(): Flow<List<BudgetEntity>> = _flow
+            override fun getBudgetsByPeriod(period: String): Flow<List<BudgetEntity>> = _flow
+            override suspend fun getBudgetById(id: Long): BudgetEntity? = null
+            override suspend fun insertBudget(budget: BudgetEntity): Long = 0L
+            override suspend fun updateBudget(budget: BudgetEntity) {}
+            override suspend fun deleteBudget(id: Long) {}
+        },
+        notificationDao = object : NotificationDao {
+            private val _flow = kotlinx.coroutines.flow.MutableStateFlow<List<NotificationEntity>>(emptyList())
+            override fun getAllNotifications(): Flow<List<NotificationEntity>> = _flow
+            override fun getUnreadCount(): Flow<Int> = flowOf(0)
+            override suspend fun insertNotification(notification: NotificationEntity): Long = 0L
+            override suspend fun markAsRead(id: Long) {}
+            override suspend fun markAllAsRead() {}
+            override suspend fun clearAllNotifications() {}
+            override suspend fun deleteNotification(id: Long) {}
         }
     )
 
@@ -281,11 +346,62 @@ class TransactionRepository(
         budgetDao.updateBudget(budget)
     }
 
+    // ── NOTIFICATIONS API ──────────────────────────────────────────────────────
+    /**
+     * Mengambil seluruh aliran notifikasi secara reaktif.
+     */
+    fun getAllNotifications(): Flow<List<NotificationEntity>> = notificationDao.getAllNotifications()
+
+    /**
+     * Mengambil jumlah notifikasi belum dibaca secara reaktif.
+     */
+    fun getUnreadNotificationCount(): Flow<Int> = notificationDao.getUnreadCount()
+
+    /**
+     * Menandai notifikasi telah dibaca berdasarkan [id].
+     */
+    suspend fun markNotificationAsRead(id: Long) {
+        notificationDao.markAsRead(id)
+    }
+
+    /**
+     * Menandai semua notifikasi telah dibaca.
+     */
+    suspend fun markAllNotificationsAsRead() {
+        notificationDao.markAllAsRead()
+    }
+
+    /**
+     * Menghapus seluruh riwayat notifikasi.
+     */
+    suspend fun clearAllNotifications() {
+        notificationDao.clearAllNotifications()
+    }
+
+    /**
+     * Menghapus satu notifikasi berdasarkan [id].
+     */
+    suspend fun deleteNotification(id: Long) {
+        notificationDao.deleteNotification(id)
+    }
+
+    /**
+     * Menambahkan notifikasi secara manual.
+     */
+    suspend fun insertNotification(notification: NotificationEntity): Long {
+        return notificationDao.insertNotification(notification)
+    }
+
     /**
      * Memasukkan transaksi baru dan memperbarui saldo rekening penampung secara atomik.
      *
      * Jika transaksi INCOME, saldo rekening bertambah.
      * Jika transaksi EXPENSE, saldo rekening berkurang.
+     *
+     * Overbudget Alerting Engine:
+     * Jika transaksi pengeluaran (EXPENSE) menyebabkan pemakaian kategori anggaran:
+     * - Melampaui 100% batas anggaran -> sistem otomatis menerbitkan notifikasi "DANGER".
+     * - Melampaui 80% batas anggaran (tapi belum 100%) -> sistem otomatis menerbitkan notifikasi "WARNING".
      */
     suspend fun insertTransaction(transaction: TransactionEntity): Long {
         val insertedId = transactionDao.insertTransaction(transaction)
@@ -295,7 +411,69 @@ class TransactionRepository(
             -transaction.amount
         }
         accountDao.adjustBalance(transaction.accountId, delta)
+
+        // Evaluasi pemakaian anggaran jika transaksi adalah EXPENSE
+        if (transaction.type.equals("EXPENSE", ignoreCase = true)) {
+            checkAndTriggerBudgetAlert(transaction)
+        }
+
         return insertedId
+    }
+
+    /**
+     * Memeriksa pemakaian anggaran untuk kategori transaksi dan memicu notifikasi peringatan jika melebihi ambang batas.
+     */
+    private suspend fun checkAndTriggerBudgetAlert(transaction: TransactionEntity) {
+        val period = if (transaction.date.length >= 7) {
+            transaction.date.substring(0, 7)
+        } else {
+            SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+        }
+
+        val allBudgets = budgetDao.getAllBudgets().first()
+        val matchingBudgets = allBudgets.filter { budget ->
+            budget.isActive &&
+            (budget.period.isEmpty() || budget.period == period) &&
+            budget.category.equals(transaction.category, ignoreCase = true)
+        }
+
+        if (matchingBudgets.isEmpty()) return
+
+        val allTransactions = transactionDao.getAllTransactions().first()
+        val totalSpentInCategory = allTransactions
+            .filter { tx ->
+                tx.type.equals("EXPENSE", ignoreCase = true) &&
+                tx.category.equals(transaction.category, ignoreCase = true) &&
+                tx.date.startsWith(period)
+            }
+            .sumOf { it.amount }
+
+        for (budget in matchingBudgets) {
+            if (budget.limitAmount <= 0) continue
+
+            val percentage = ((totalSpentInCategory / budget.limitAmount) * 100).toInt()
+            if (percentage >= 100) {
+                notificationDao.insertNotification(
+                    NotificationEntity(
+                        title = "ANGGARAN TERLAMPAUI (100%+)",
+                        message = "Pengeluaran '${budget.category}' mencapai Rp ${totalSpentInCategory.toLong()} (${percentage}% dari anggaran Rp ${budget.limitAmount.toLong()}). Segera evaluasi!",
+                        type = "DANGER",
+                        isRead = false,
+                        createdAt = System.currentTimeMillis()
+                    )
+                )
+            } else if (percentage >= 80) {
+                notificationDao.insertNotification(
+                    NotificationEntity(
+                        title = "PERINGATAN ANGGARAN (80%+)",
+                        message = "Pengeluaran '${budget.category}' telah mencapai Rp ${totalSpentInCategory.toLong()} (${percentage}% dari batas anggaran).",
+                        type = "WARNING",
+                        isRead = false,
+                        createdAt = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
     }
 
     /**

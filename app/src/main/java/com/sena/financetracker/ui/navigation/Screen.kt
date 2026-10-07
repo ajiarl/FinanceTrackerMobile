@@ -5,6 +5,7 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.InsertChartOutlined
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -54,6 +55,12 @@ sealed class Screen(
         route = "categories",
         title = "Kategori",
         icon = Icons.AutoMirrored.Filled.ReceiptLong
+    )
+
+    data object Notifications : Screen(
+        route = "notifications",
+        title = "Notifikasi",
+        icon = Icons.Default.Notifications
     )
 
     companion object {

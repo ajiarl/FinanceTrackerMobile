@@ -33,7 +33,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
 
     companion object {
         const val DATABASE_NAME = "finance_tracker.db"
-        const val DATABASE_VERSION = 3
+        const val DATABASE_VERSION = 4
 
         // Table Transactions
         const val TABLE_TRANSACTIONS = "transactions"
@@ -70,6 +70,15 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         const val COL_BUDGET_PERIOD = "period"
         const val COL_BUDGET_IS_ACTIVE = "is_active"
 
+        // Table Notifications
+        const val TABLE_NOTIFICATIONS = "notifications"
+        const val COL_NOTIF_ID = "id"
+        const val COL_NOTIF_TITLE = "title"
+        const val COL_NOTIF_MESSAGE = "message"
+        const val COL_NOTIF_TYPE = "type"
+        const val COL_NOTIF_IS_READ = "is_read"
+        const val COL_NOTIF_CREATED_AT = "created_at"
+
         @Volatile
         private var instance: AppDatabase? = null
 
@@ -85,6 +94,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
     private val _accountsFlow = MutableStateFlow<List<AccountEntity>>(emptyList())
     private val _categoriesFlow = MutableStateFlow<List<CategoryEntity>>(emptyList())
     private val _budgetsFlow = MutableStateFlow<List<BudgetEntity>>(emptyList())
+    private val _notificationsFlow = MutableStateFlow<List<NotificationEntity>>(emptyList())
 
     init {
         dbScope.launch {
@@ -132,7 +142,23 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         )
 
         createBudgetsTable(db)
+        createNotificationsTable(db)
         seedInitialData(db)
+    }
+
+    private fun createNotificationsTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_NOTIFICATIONS (
+                $COL_NOTIF_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                $COL_NOTIF_TITLE TEXT NOT NULL,
+                $COL_NOTIF_MESSAGE TEXT NOT NULL,
+                $COL_NOTIF_TYPE TEXT NOT NULL,
+                $COL_NOTIF_IS_READ INTEGER NOT NULL DEFAULT 0,
+                $COL_NOTIF_CREATED_AT INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
     }
 
     private fun createBudgetsTable(db: SQLiteDatabase) {
@@ -153,6 +179,9 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 3) {
             createBudgetsTable(db)
+        }
+        if (oldVersion < 4) {
+            createNotificationsTable(db)
         }
     }
 
@@ -201,6 +230,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         refreshAccountsFlowInternal()
         refreshCategoriesFlowInternal()
         refreshBudgetsFlowInternal()
+        refreshNotificationsFlowInternal()
     }
 
     private fun refreshTransactionsFlowInternal() {
@@ -343,6 +373,42 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             }
         }
         _budgetsFlow.value = list
+    }
+
+    private fun refreshNotificationsFlowInternal() {
+        val list = mutableListOf<NotificationEntity>()
+        val db = readableDatabase
+        val cursor = db.query(
+            TABLE_NOTIFICATIONS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "$COL_NOTIF_CREATED_AT DESC"
+        )
+        cursor.use { c ->
+            val idIdx = c.getColumnIndexOrThrow(COL_NOTIF_ID)
+            val titleIdx = c.getColumnIndexOrThrow(COL_NOTIF_TITLE)
+            val msgIdx = c.getColumnIndexOrThrow(COL_NOTIF_MESSAGE)
+            val typeIdx = c.getColumnIndexOrThrow(COL_NOTIF_TYPE)
+            val isReadIdx = c.getColumnIndexOrThrow(COL_NOTIF_IS_READ)
+            val createdIdx = c.getColumnIndexOrThrow(COL_NOTIF_CREATED_AT)
+
+            while (c.moveToNext()) {
+                list.add(
+                    NotificationEntity(
+                        id = c.getLong(idIdx),
+                        title = c.getString(titleIdx),
+                        message = c.getString(msgIdx),
+                        type = c.getString(typeIdx),
+                        isRead = c.getInt(isReadIdx) == 1,
+                        createdAt = c.getLong(createdIdx)
+                    )
+                )
+            }
+        }
+        _notificationsFlow.value = list
     }
 
     // ── TransactionDao Implementation ─────────────────────────────────────────
@@ -635,6 +701,65 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             val db = writableDatabase
             db.delete(TABLE_BUDGETS, "$COL_BUDGET_ID = ?", arrayOf(id.toString()))
             refreshBudgetsFlowInternal()
+            Unit
+        }
+    }
+
+    // ── NotificationDao Implementation ───────────────────────────────────────
+    val notificationDao: NotificationDao = object : NotificationDao {
+        override fun getAllNotifications(): Flow<List<NotificationEntity>> {
+            return _notificationsFlow.asStateFlow()
+        }
+
+        override fun getUnreadCount(): Flow<Int> {
+            return _notificationsFlow.map { list -> list.count { !it.isRead } }
+        }
+
+        override suspend fun insertNotification(notification: NotificationEntity): Long = withContext(Dispatchers.IO) {
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put(COL_NOTIF_TITLE, notification.title)
+                put(COL_NOTIF_MESSAGE, notification.message)
+                put(COL_NOTIF_TYPE, notification.type)
+                put(COL_NOTIF_IS_READ, if (notification.isRead) 1 else 0)
+                put(COL_NOTIF_CREATED_AT, notification.createdAt)
+            }
+            val id = db.insert(TABLE_NOTIFICATIONS, null, values)
+            refreshNotificationsFlowInternal()
+            id
+        }
+
+        override suspend fun markAsRead(id: Long) = withContext(Dispatchers.IO) {
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put(COL_NOTIF_IS_READ, 1)
+            }
+            db.update(TABLE_NOTIFICATIONS, values, "$COL_NOTIF_ID = ?", arrayOf(id.toString()))
+            refreshNotificationsFlowInternal()
+            Unit
+        }
+
+        override suspend fun markAllAsRead() = withContext(Dispatchers.IO) {
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put(COL_NOTIF_IS_READ, 1)
+            }
+            db.update(TABLE_NOTIFICATIONS, values, null, null)
+            refreshNotificationsFlowInternal()
+            Unit
+        }
+
+        override suspend fun clearAllNotifications() = withContext(Dispatchers.IO) {
+            val db = writableDatabase
+            db.delete(TABLE_NOTIFICATIONS, null, null)
+            refreshNotificationsFlowInternal()
+            Unit
+        }
+
+        override suspend fun deleteNotification(id: Long) = withContext(Dispatchers.IO) {
+            val db = writableDatabase
+            db.delete(TABLE_NOTIFICATIONS, "$COL_NOTIF_ID = ?", arrayOf(id.toString()))
+            refreshNotificationsFlowInternal()
             Unit
         }
     }

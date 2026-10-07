@@ -6,12 +6,15 @@ import androidx.lifecycle.viewModelScope
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.CategoryEntity
+import com.sena.financetracker.data.NotificationEntity
 import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.repository.TransactionRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -37,6 +40,26 @@ class FinanceViewModel(
      */
     val uiState: StateFlow<FinanceUiState> = _uiState.asStateFlow()
 
+    /**
+     * StateFlow daftar notifikasi sistem aplikasi.
+     */
+    val notifications: StateFlow<List<NotificationEntity>> = repository.getAllNotifications()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    /**
+     * StateFlow jumlah notifikasi yang belum dibaca.
+     */
+    val unreadNotificationCount: StateFlow<Int> = repository.getUnreadNotificationCount()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
+
     private val _searchQuery = MutableStateFlow("")
     private val _selectedCategoryFilter = MutableStateFlow<String?>(null)
     private val _selectedDateFilter = MutableStateFlow("ALL")
@@ -55,11 +78,25 @@ class FinanceViewModel(
         val reportsPreset: String
     )
 
-    private data class DataBundle(
+    private data class CoreData(
         val transactions: List<TransactionEntity>,
         val accounts: List<AccountEntity>,
         val categories: List<CategoryEntity>,
         val budgets: List<BudgetProgressItem>
+    )
+
+    private data class NotifData(
+        val notifications: List<NotificationEntity>,
+        val unreadNotificationCount: Int
+    )
+
+    private data class DataBundle(
+        val transactions: List<TransactionEntity>,
+        val accounts: List<AccountEntity>,
+        val categories: List<CategoryEntity>,
+        val budgets: List<BudgetProgressItem>,
+        val notifications: List<NotificationEntity>,
+        val unreadNotificationCount: Int
     )
 
     /**
@@ -81,13 +118,31 @@ class FinanceViewModel(
             FilterParams(query, category, dateFilter, typeFilter, reportsPreset)
         }
 
-        val dataFlow = combine(
+        val coreDataFlow = combine(
             repository.getAllTransactions(),
             repository.getAllAccounts(),
             repository.getAllCategories(),
             repository.getBudgetProgress()
         ) { txs, accs, cats, budgets ->
-            DataBundle(txs, accs, cats, budgets)
+            CoreData(txs, accs, cats, budgets)
+        }
+
+        val notifDataFlow = combine(
+            repository.getAllNotifications(),
+            repository.getUnreadNotificationCount()
+        ) { notifs, unreadCount ->
+            NotifData(notifs, unreadCount)
+        }
+
+        val dataFlow = combine(coreDataFlow, notifDataFlow) { core, notif ->
+            DataBundle(
+                transactions = core.transactions,
+                accounts = core.accounts,
+                categories = core.categories,
+                budgets = core.budgets,
+                notifications = notif.notifications,
+                unreadNotificationCount = notif.unreadNotificationCount
+            )
         }
 
         viewModelScope.launch {
@@ -97,6 +152,8 @@ class FinanceViewModel(
                     accounts = data.accounts,
                     categories = data.categories,
                     budgets = data.budgets,
+                    notifications = data.notifications,
+                    unreadNotificationCount = data.unreadNotificationCount,
                     searchQuery = filter.query,
                     selectedCategoryFilter = filter.category,
                     selectedDateFilter = filter.dateFilter,
@@ -128,6 +185,59 @@ class FinanceViewModel(
      */
     fun setSelectedCategoryFilter(category: String?) {
         _selectedCategoryFilter.value = category
+    }
+
+    // ── NOTIFICATIONS ACTIONS ──────────────────────────────────────────────────
+    /**
+     * Menandai notifikasi sebagai sudah dibaca berdasarkan ID.
+     */
+    fun markNotificationAsRead(id: Long) {
+        viewModelScope.launch {
+            try {
+                repository.markNotificationAsRead(id)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = "Gagal menandai notifikasi: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Menandai seluruh notifikasi yang ada sebagai sudah dibaca.
+     */
+    fun markAllNotificationsAsRead() {
+        viewModelScope.launch {
+            try {
+                repository.markAllNotificationsAsRead()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = "Gagal menandai semua notifikasi: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Menghapus seluruh riwayat notifikasi.
+     */
+    fun clearAllNotifications() {
+        viewModelScope.launch {
+            try {
+                repository.clearAllNotifications()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = "Gagal membersihkan notifikasi: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Menghapus satu notifikasi berdasarkan ID.
+     */
+    fun deleteNotification(id: Long) {
+        viewModelScope.launch {
+            try {
+                repository.deleteNotification(id)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = "Gagal menghapus notifikasi: ${e.message}")
+            }
+        }
     }
 
     /**
