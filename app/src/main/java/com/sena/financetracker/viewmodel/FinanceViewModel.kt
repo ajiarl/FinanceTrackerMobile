@@ -14,9 +14,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -65,6 +67,9 @@ class FinanceViewModel(
     private val _selectedDateFilter = MutableStateFlow("ALL")
     private val _selectedFilterTab = MutableStateFlow("ALL")
     private val _reportsPeriodPreset = MutableStateFlow("THIS_MONTH")
+    private val _aiInsightText = MutableStateFlow<String?>(null)
+    private val _isAiInsightLoading = MutableStateFlow(false)
+    private val _aiInsightError = MutableStateFlow<String?>(null)
 
     init {
         observeData()
@@ -75,7 +80,10 @@ class FinanceViewModel(
         val category: String?,
         val dateFilter: String,
         val typeFilter: String,
-        val reportsPreset: String
+        val reportsPreset: String,
+        val aiInsightText: String?,
+        val isAiInsightLoading: Boolean,
+        val aiInsightError: String?
     )
 
     private data class CoreData(
@@ -109,13 +117,20 @@ class FinanceViewModel(
      */
     private fun observeData() {
         val filterParamsFlow = combine(
-            _searchQuery,
-            _selectedCategoryFilter,
-            _selectedDateFilter,
-            _selectedFilterTab,
-            _reportsPeriodPreset
-        ) { query, category, dateFilter, typeFilter, reportsPreset ->
-            FilterParams(query, category, dateFilter, typeFilter, reportsPreset)
+            combine(_searchQuery, _selectedCategoryFilter, _selectedDateFilter) { q, c, d -> Triple(q, c, d) },
+            combine(_selectedFilterTab, _reportsPeriodPreset) { t, r -> Pair(t, r) },
+            combine(_aiInsightText, _isAiInsightLoading, _aiInsightError) { text, loading, err -> Triple(text, loading, err) }
+        ) { (query, category, dateFilter), (typeFilter, reportsPreset), (aiText, aiLoading, aiErr) ->
+            FilterParams(
+                query = query,
+                category = category,
+                dateFilter = dateFilter,
+                typeFilter = typeFilter,
+                reportsPreset = reportsPreset,
+                aiInsightText = aiText,
+                isAiInsightLoading = aiLoading,
+                aiInsightError = aiErr
+            )
         }
 
         val coreDataFlow = combine(
@@ -158,7 +173,10 @@ class FinanceViewModel(
                     selectedCategoryFilter = filter.category,
                     selectedDateFilter = filter.dateFilter,
                     selectedFilterTab = filter.typeFilter,
-                    reportsPreset = filter.reportsPreset
+                    reportsPreset = filter.reportsPreset,
+                    aiInsightText = filter.aiInsightText,
+                    isAiInsightLoading = filter.isAiInsightLoading,
+                    aiInsightError = filter.aiInsightError
                 ).copy(isLoading = false)
             }.collect { newState ->
                 _uiState.value = newState
@@ -294,6 +312,63 @@ class FinanceViewModel(
                 val errorMsg = e.message ?: "Gagal mengimpor batch transaksi CSV"
                 _uiState.value = _uiState.value.copy(errorMessage = errorMsg)
                 onError(errorMsg)
+            }
+        }
+    }
+
+    /**
+     * Memicu permintaan analisis finansial cerdas "Pak Hemat · AI Insight"
+     * untuk rentang transaksi tertentu atau transaksi periode yang sedang aktif.
+     */
+    fun fetchAiInsight(startDate: String? = null, endDate: String? = null) {
+        viewModelScope.launch {
+            _isAiInsightLoading.value = true
+            _aiInsightError.value = null
+            try {
+                val allTx = repository.getAllTransactions().first()
+                val targetTransactions = if (!startDate.isNullOrBlank() && !endDate.isNullOrBlank()) {
+                    allTx.filter { tx ->
+                        val date = tx.date.take(10)
+                        date in startDate..endDate
+                    }
+                } else {
+                    val sdfMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+                    val cal = Calendar.getInstance()
+                    val thisMonthStr = sdfMonth.format(cal.time)
+                    cal.add(Calendar.MONTH, -1)
+                    val lastMonthStr = sdfMonth.format(cal.time)
+
+                    val last3MonthsSet = mutableSetOf<String>()
+                    val cal3 = Calendar.getInstance()
+                    for (i in 0..2) {
+                        last3MonthsSet.add(sdfMonth.format(cal3.time))
+                        cal3.add(Calendar.MONTH, -1)
+                    }
+
+                    when (_reportsPeriodPreset.value) {
+                        "THIS_MONTH" -> allTx.filter { it.date.take(7) == thisMonthStr }
+                        "LAST_MONTH" -> allTx.filter { it.date.take(7) == lastMonthStr }
+                        "LAST_3_MONTHS" -> allTx.filter { last3MonthsSet.contains(it.date.take(7)) }
+                        else -> allTx
+                    }
+                }
+
+                val periodTitle = when (_reportsPeriodPreset.value) {
+                    "LAST_MONTH" -> "Bulan Lalu"
+                    "LAST_3_MONTHS" -> "3 Bulan Terakhir"
+                    "ALL_TIME" -> "Semua Waktu"
+                    else -> "Bulan Ini"
+                }
+
+                val insight = com.sena.financetracker.service.AiInsightService.getFinancialInsight(
+                    transactions = targetTransactions,
+                    periodTitle = periodTitle
+                )
+                _aiInsightText.value = insight
+            } catch (e: Exception) {
+                _aiInsightError.value = e.message ?: "Gagal mendapatkan analisis AI"
+            } finally {
+                _isAiInsightLoading.value = false
             }
         }
     }

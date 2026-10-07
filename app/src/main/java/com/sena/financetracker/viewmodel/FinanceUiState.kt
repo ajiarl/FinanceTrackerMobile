@@ -97,7 +97,10 @@ data class FinanceUiState(
     val selectedCategoryFilter: String? = null,
     val selectedDateFilter: String = "ALL", // "ALL", "TODAY", "THIS_MONTH"
     val selectedFilterTab: String = "ALL", // "ALL", "EXPENSE", "INCOME"
-    val reportsAnalytics: ReportsAnalyticsState = ReportsAnalyticsState()
+    val reportsAnalytics: ReportsAnalyticsState = ReportsAnalyticsState(),
+    val aiInsightText: String? = null,
+    val isAiInsightLoading: Boolean = false,
+    val aiInsightError: String? = null
 )
 
 /**
@@ -347,6 +350,9 @@ fun calculateFinanceTotals(
     selectedDateFilter: String = "ALL",
     selectedFilterTab: String = "ALL",
     reportsPreset: String = "THIS_MONTH",
+    aiInsightText: String? = null,
+    isAiInsightLoading: Boolean = false,
+    aiInsightError: String? = null,
     currentDate: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
     referenceDate: Date = Date()
 ): FinanceUiState {
@@ -395,6 +401,9 @@ fun calculateFinanceTotals(
         selectedCategoryFilter = selectedCategoryFilter,
         selectedDateFilter = selectedDateFilter,
         selectedFilterTab = selectedFilterTab,
-        reportsAnalytics = reportsState
+        reportsAnalytics = reportsState,
+        aiInsightText = aiInsightText,
+        isAiInsightLoading = isAiInsightLoading,
+        aiInsightError = aiInsightError
     )
 }

@@ -65,4 +65,18 @@ class FinanceUiStateCalculationTest {
         assertEquals("Makanan & Minuman", state.categories[0].name)
         assertEquals("Gaji", state.categories[1].name)
     }
+
+    @Test
+    fun testAiInsightPropertiesInState() {
+        val state = calculateFinanceTotals(
+            transactions = emptyList(),
+            aiInsightText = "Hemat 50% bos!",
+            isAiInsightLoading = false,
+            aiInsightError = null
+        )
+
+        assertEquals("Hemat 50% bos!", state.aiInsightText)
+        assertEquals(false, state.isAiInsightLoading)
+        assertEquals(null, state.aiInsightError)
+    }
 }

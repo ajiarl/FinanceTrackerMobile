@@ -121,6 +121,7 @@ fun FinanceDashboardScreen(
                 onSuccess = { onDone() }
             )
         },
+        onRefreshAiInsight = { viewModel.fetchAiInsight() },
         modifier = modifier
     )
 }
@@ -161,6 +162,7 @@ fun FinanceDashboardContent(
     onDeleteNotification: (Long) -> Unit = {},
     onResetTransactions: () -> Unit = {},
     onImportTransactionsBatch: (List<TransactionEntity>, () -> Unit) -> Unit = { _, _ -> },
+    onRefreshAiInsight: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -274,7 +276,8 @@ fun FinanceDashboardContent(
             composable(Screen.Reports.route) {
                 ReportsScreen(
                     uiState = uiState,
-                    onPresetSelected = onReportsPresetSelected
+                    onPresetSelected = onReportsPresetSelected,
+                    onRefreshAiInsight = onRefreshAiInsight
                 )
             }
 

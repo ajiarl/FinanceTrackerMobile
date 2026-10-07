@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.sena.financetracker.ui.components.RetroCanvas
 import com.sena.financetracker.ui.components.RetroIncomeGreen
 import com.sena.financetracker.ui.components.RetroYellow
+import com.sena.financetracker.ui.dashboard.components.AiInsightsPanel
 import com.sena.financetracker.util.CsvExporter
 import com.sena.financetracker.util.formatRupiah
 import com.sena.financetracker.viewmodel.CashflowBarItem
@@ -59,6 +60,7 @@ import kotlin.math.max
 fun ReportsScreen(
     uiState: FinanceUiState,
     onPresetSelected: (String) -> Unit,
+    onRefreshAiInsight: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val reports = uiState.reportsAnalytics
@@ -173,6 +175,16 @@ fun ReportsScreen(
                     }
                 }
             }
+        }
+
+        // Panel AI "Pak Hemat · AI Insight"
+        item {
+            AiInsightsPanel(
+                insightText = uiState.aiInsightText,
+                isLoading = uiState.isAiInsightLoading,
+                errorMessage = uiState.aiInsightError,
+                onRefresh = onRefreshAiInsight
+            )
         }
 
         // Kartu Ringkasan Rasio Tabungan (Saving Rate %)
