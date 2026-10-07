@@ -297,6 +297,54 @@ class FinanceViewModel(
     }
 
     /**
+     * Menambahkan kategori transaksi baru (kustom buatan pengguna).
+     */
+    fun addCategory(
+        name: String,
+        type: String,
+        color: String = "#FAFF00"
+    ) {
+        viewModelScope.launch {
+            try {
+                repository.insertCategory(name, type, color)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message)
+            }
+        }
+    }
+
+    /**
+     * Memperbarui detail nama, tipe, atau warna kategori kustom.
+     */
+    fun updateCategory(
+        id: Long,
+        name: String,
+        type: String,
+        color: String
+    ) {
+        viewModelScope.launch {
+            try {
+                repository.updateCategory(id, name, type, color)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message)
+            }
+        }
+    }
+
+    /**
+     * Menghapus kategori kustom berdasarkan ID. Kategori bawaan sistem diproteksi dan ditolak.
+     */
+    fun deleteCategory(id: Long) {
+        viewModelScope.launch {
+            try {
+                repository.deleteCategory(id)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message)
+            }
+        }
+    }
+
+    /**
      * Factory provider untuk inisialisasi [FinanceViewModel] dengan dependency injection manual.
      */
     class Factory(private val repository: TransactionRepository) : ViewModelProvider.Factory {

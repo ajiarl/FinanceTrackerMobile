@@ -50,6 +50,12 @@ sealed class Screen(
         icon = Icons.Default.InsertChartOutlined
     )
 
+    data object Categories : Screen(
+        route = "categories",
+        title = "Kategori",
+        icon = Icons.AutoMirrored.Filled.ReceiptLong
+    )
+
     companion object {
         /**
          * Seluruh daftar layar tab bottom navigation utama (5 Tab: Beranda, Transaksi, Anggaran, Akun, Laporan).

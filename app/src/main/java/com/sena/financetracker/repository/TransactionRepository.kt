@@ -66,7 +66,9 @@ class TransactionRepository(
             override fun getAllCategories(): Flow<List<CategoryEntity>> = flowOf(emptyList())
             override fun getCategoriesByType(type: String): Flow<List<CategoryEntity>> = flowOf(emptyList())
             override suspend fun insertCategory(category: CategoryEntity): Long = 0L
-            override suspend fun deleteCategory(id: Long) {}
+            override suspend fun updateCategory(category: CategoryEntity): Int = 0
+            override suspend fun deleteCategory(id: Long): Int = 0
+            override suspend fun getCategoryById(id: Long): CategoryEntity? = null
         }
     )
 
@@ -89,6 +91,95 @@ class TransactionRepository(
      * Mengambil kategori yang disaring berdasarkan tipe ("EXPENSE" atau "INCOME").
      */
     fun getCategoriesByType(type: String): Flow<List<CategoryEntity>> = categoryDao.getCategoriesByType(type)
+
+    /**
+     * Kumpulan nama kategori bawaan sistem yang dilindungi dari penghapusan.
+     */
+    val systemCategoryNames = setOf(
+        "Makanan & Minuman",
+        "Transportasi",
+        "Belanja",
+        "Tagihan & Utilitas",
+        "Hiburan",
+        "Gaji",
+        "Freelance",
+        "Investasi",
+        "Bonus",
+        "Lainnya",
+        "Transfer",
+        "Penyesuaian",
+        "Saldo Awal"
+    )
+
+    /**
+     * Memeriksa apakah sebuah nama kategori merupakan kategori sistem yang dilindungi.
+     */
+    fun isSystemCategory(name: String): Boolean {
+        return systemCategoryNames.any { it.equals(name.trim(), ignoreCase = true) }
+    }
+
+    /**
+     * Menambahkan kategori baru ke dalam database.
+     *
+     * @param name Nama kategori.
+     * @param type Tipe kategori ("EXPENSE" atau "INCOME").
+     * @param color Kode warna hex Neobrutal (misal: "#FAFF00").
+     * @return ID baris kategori baru.
+     * @throws IllegalArgumentException Jika nama kosong atau tipe tidak valid.
+     */
+    suspend fun insertCategory(name: String, type: String, color: String = "#FAFF00"): Long {
+        require(name.isNotBlank()) { "Nama kategori tidak boleh kosong" }
+        val upperType = type.trim().uppercase()
+        require(upperType == "EXPENSE" || upperType == "INCOME") {
+            "Tipe kategori harus EXPENSE atau INCOME"
+        }
+        val entity = CategoryEntity(
+            name = name.trim(),
+            type = upperType,
+            color = if (color.isNotBlank()) color else "#FAFF00"
+        )
+        return categoryDao.insertCategory(entity)
+    }
+
+    /**
+     * Memperbarui detail kategori yang sudah ada.
+     *
+     * @param id ID kategori.
+     * @param name Nama kategori baru.
+     * @param type Tipe kategori baru ("EXPENSE" atau "INCOME").
+     * @param color Kode warna hex.
+     * @return Jumlah baris yang terpengaruh.
+     */
+    suspend fun updateCategory(id: Long, name: String, type: String, color: String): Int {
+        require(name.isNotBlank()) { "Nama kategori tidak boleh kosong" }
+        val upperType = type.trim().uppercase()
+        require(upperType == "EXPENSE" || upperType == "INCOME") {
+            "Tipe kategori harus EXPENSE atau INCOME"
+        }
+        val entity = CategoryEntity(
+            id = id,
+            name = name.trim(),
+            type = upperType,
+            color = if (color.isNotBlank()) color else "#FAFF00"
+        )
+        return categoryDao.updateCategory(entity)
+    }
+
+    /**
+     * Menghapus kategori kustom berdasarkan ID dengan proteksi kategori sistem.
+     * Kategori sistem bawaan tidak dapat dihapus.
+     *
+     * @param id ID kategori.
+     * @return Jumlah baris yang dihapus.
+     * @throws IllegalStateException Jika kategori yang hendak dihapus merupakan kategori sistem.
+     */
+    suspend fun deleteCategory(id: Long): Int {
+        val existing = categoryDao.getCategoryById(id)
+        if (existing != null && isSystemCategory(existing.name)) {
+            throw IllegalStateException("Kategori bawaan sistem '${existing.name}' tidak dapat dihapus!")
+        }
+        return categoryDao.deleteCategory(id)
+    }
 
     /**
      * Mengambil seluruh daftar entitas anggaran yang tersimpan.

@@ -525,11 +525,44 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             id
         }
 
-        override suspend fun deleteCategory(id: Long) = withContext(Dispatchers.IO) {
+        override suspend fun updateCategory(category: CategoryEntity): Int = withContext(Dispatchers.IO) {
             val db = writableDatabase
-            db.delete(TABLE_CATEGORIES, "$COL_CAT_ID = ?", arrayOf(id.toString()))
+            val values = ContentValues().apply {
+                put(COL_CAT_NAME, category.name)
+                put(COL_CAT_TYPE, category.type)
+                put(COL_CAT_COLOR, category.color)
+            }
+            val count = db.update(TABLE_CATEGORIES, values, "$COL_CAT_ID = ?", arrayOf(category.id.toString()))
             refreshCategoriesFlowInternal()
-            Unit
+            count
+        }
+
+        override suspend fun deleteCategory(id: Long): Int = withContext(Dispatchers.IO) {
+            val db = writableDatabase
+            val count = db.delete(TABLE_CATEGORIES, "$COL_CAT_ID = ?", arrayOf(id.toString()))
+            refreshCategoriesFlowInternal()
+            count
+        }
+
+        override suspend fun getCategoryById(id: Long): CategoryEntity? = withContext(Dispatchers.IO) {
+            val db = readableDatabase
+            val cursor = db.query(
+                TABLE_CATEGORIES,
+                null,
+                "$COL_CAT_ID = ?",
+                arrayOf(id.toString()),
+                null,
+                null,
+                null
+            )
+            cursor.use {
+                if (it.moveToFirst()) {
+                    val name = it.getString(it.getColumnIndexOrThrow(COL_CAT_NAME))
+                    val type = it.getString(it.getColumnIndexOrThrow(COL_CAT_TYPE))
+                    val color = it.getString(it.getColumnIndexOrThrow(COL_CAT_COLOR))
+                    CategoryEntity(id = id, name = name, type = type, color = color)
+                } else null
+            }
         }
     }
 

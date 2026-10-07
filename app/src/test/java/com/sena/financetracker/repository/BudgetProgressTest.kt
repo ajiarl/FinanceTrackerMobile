@@ -308,6 +308,8 @@ class BudgetProgressTest {
         override fun getCategoriesByType(type: String): Flow<List<CategoryEntity>> =
             MutableStateFlow(emptyList())
         override suspend fun insertCategory(category: CategoryEntity): Long = 0L
-        override suspend fun deleteCategory(id: Long) {}
+        override suspend fun updateCategory(category: CategoryEntity): Int = 1
+        override suspend fun deleteCategory(id: Long): Int = 1
+        override suspend fun getCategoryById(id: Long): CategoryEntity? = null
     }
 }
