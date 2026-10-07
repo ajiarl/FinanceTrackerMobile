@@ -101,31 +101,34 @@ private fun BottomNavItem(
     ) {
         if (isSelected) {
             // Container aktif dengan hard drop shadow kotak 2.dp
-            Box {
-                // Shadow kotak hitam
+            Box(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Shadow kotak hitam 2.dp
                 Box(
                     modifier = Modifier
                         .matchParentSize()
                         .offset(x = 2.dp, y = 2.dp)
                         .background(Color.Black, RectangleShape)
                 )
-                // Card utama aktif warna RetroYellow #FAFF00
-                Row(
+                // Card utama aktif Neobrutal: Column vertikal (ikon di atas, label di bawah)
+                Column(
                     modifier = Modifier
+                        .fillMaxWidth()
                         .background(RetroYellow, RectangleShape)
                         .border(2.dp, Color.Black, RectangleShape)
-                        .padding(horizontal = 6.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
                     Icon(
                         imageVector = screen.icon,
                         contentDescription = screen.title,
                         tint = Color.Black,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                     Text(
-                        text = " " + screen.title.uppercase(),
+                        text = screen.title,
                         style = TextStyle(
                             fontWeight = FontWeight.Black,
                             fontSize = 10.sp,
@@ -142,7 +145,9 @@ private fun BottomNavItem(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(vertical = 4.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
             ) {
                 Icon(
                     imageVector = screen.icon,

@@ -63,7 +63,7 @@ fun TransactionsScreen(
         modifier = modifier
             .fillMaxSize()
             .background(RetroCanvas),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 80.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
@@ -75,15 +75,6 @@ fun TransactionsScreen(
                 Column(
                     modifier = Modifier.weight(1f, fill = false)
                 ) {
-                    Text(
-                        text = "CATATAN ARUS KAS",
-                        style = TextStyle(
-                            fontWeight = FontWeight.Black,
-                            fontSize = 11.sp,
-                            letterSpacing = 2.sp,
-                            color = Color.Black.copy(alpha = 0.5f)
-                        )
-                    )
                     Text(
                         text = "RIWAYAT TRANSAKSI",
                         style = TextStyle(

@@ -8,6 +8,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -88,32 +90,17 @@ fun DashboardTransactionsSection(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Section Header
+        // Filter Tabs: SEMUA, KELUAR, MASUK
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "RIWAYAT TRANSAKSI",
-                style = TextStyle(
-                    fontWeight = FontWeight.Black,
-                    fontSize = 13.sp,
-                    letterSpacing = 1.sp,
-                    color = Color.Black
-                )
-            )
-
-            // Filter Tabs: SEMUA, KELUAR, MASUK
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                listOf(
-                    "ALL" to "SEMUA",
-                    "EXPENSE" to "KELUAR",
-                    "INCOME" to "MASUK"
-                ).forEach { (typeKey, label) ->
+            listOf(
+                "ALL" to "SEMUA",
+                "EXPENSE" to "KELUAR",
+                "INCOME" to "MASUK"
+            ).forEach { (typeKey, label) ->
                     val isSelected = selectedFilterTab.equals(typeKey, ignoreCase = true)
                     Box(modifier = Modifier.padding(end = 2.dp, bottom = 2.dp)) {
                         if (isSelected) {
@@ -151,7 +138,6 @@ fun DashboardTransactionsSection(
                         }
                     }
                 }
-            }
         }
 
         // Search Bar Neobrutalisme
@@ -541,9 +527,9 @@ fun TransactionNeobrutalItem(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                Row(
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     // Category Badge
                     Box(
@@ -559,7 +545,10 @@ fun TransactionNeobrutalItem(
                                 fontSize = 9.sp,
                                 letterSpacing = 0.5.sp,
                                 color = Color.Black
-                            )
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 120.dp)
                         )
                     }
 
@@ -569,7 +558,7 @@ fun TransactionNeobrutalItem(
                             modifier = Modifier
                                 .background(Color(0xFFE2E8F0), RectangleShape)
                                 .border(1.dp, Color.Black, RectangleShape)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
                                 text = transaction.accountName.uppercase(),
@@ -578,7 +567,10 @@ fun TransactionNeobrutalItem(
                                     fontSize = 9.sp,
                                     letterSpacing = 0.5.sp,
                                     color = Color.Black
-                                )
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.widthIn(max = 120.dp)
                             )
                         }
                     }
