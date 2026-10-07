@@ -13,6 +13,17 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * SQLite Open Helper terpadu pengganti penuh database helper monolitik lama.
+ *
+ * Mengelola lifecycle skema database lokal SQLite (`finance_tracker.db`), termasuk:
+ * - DDL pembuatan dan migrasi tabel:
+ *   1. `accounts`: Menyimpan identitas rekening/dompet dan saldo berjalan.
+ *   2. `categories`: Menyimpan daftar kategori pemasukan dan pengeluaran beserta kode warna UI.
+ *   3. `transactions`: Riwayat transaksi keuangan multi-akun (pemasukan, pengeluaran, transfer).
+ *   4. `budgets`: Batas limit pengeluaran bulanan per kategori dan status aktif (ditambahkan pada Database Version 3).
+ * - Sinkronisasi reaktif multi-aliran menggunakan Kotlin Coroutines [StateFlow] untuk UI update instan.
+ */
 class AppDatabase(context: Context) : SQLiteOpenHelper(
     context.applicationContext,
     DATABASE_NAME,

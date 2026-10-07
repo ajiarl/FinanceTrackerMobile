@@ -8,6 +8,24 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Model representasi keadaan UI (UI State) yang immutabel untuk layar utama dashboard keuangan.
+ *
+ * @property transactions Daftar lengkap seluruh entitas transaksi yang tersimpan.
+ * @property filteredTransactions Daftar transaksi terisolasi hasil penerapan multi-kriteria filter (search, category, date, type).
+ * @property accounts Daftar rekening dan dompet keuangan pengguna beserta saldo masing-masing.
+ * @property categories Daftar kategori pemasukan dan pengeluaran.
+ * @property budgets Ringkasan progres anggaran kategori dan status overbudget alert ("SAFE", "WARNING", "CRITICAL").
+ * @property totalBalance Total saldo bersih kekayaan pengguna (jumlah saldo seluruh rekening aktif).
+ * @property totalIncome Total seluruh pemasukan riil dari transaksi bertipe "INCOME".
+ * @property totalExpense Total seluruh pengeluaran riil dari transaksi bertipe "EXPENSE".
+ * @property isLoading Indikator pemuatan data awal dari database.
+ * @property errorMessage Pesan galat operasional jika terjadi pengecualian sistem.
+ * @property searchQuery Kata kunci pencarian interaktif (judul, kategori, catatan).
+ * @property selectedCategoryFilter Filter kategori transaksi terpilih (null = semua kategori).
+ * @property selectedDateFilter Filter rentang waktu ("ALL", "TODAY", "THIS_MONTH").
+ * @property selectedFilterTab Filter tab jenis transaksi ("ALL", "EXPENSE", "INCOME").
+ */
 data class FinanceUiState(
     val transactions: List<TransactionEntity> = emptyList(),
     val filteredTransactions: List<TransactionEntity> = transactions,
@@ -25,6 +43,15 @@ data class FinanceUiState(
     val selectedFilterTab: String = "ALL" // "ALL", "EXPENSE", "INCOME"
 )
 
+/**
+ * Menyaring daftar transaksi secara murni (pure function) berdasarkan multi-kriteria filter:
+ * 1. Text Search: Mencocokkan query pencarian ke judul, kategori, atau catatan transaksi.
+ * 2. Type Tab: Menyaring berdasarkan jenis transaksi ("EXPENSE" / "INCOME").
+ * 3. Kategori: Menyaring berdasarkan nama kategori spesifik.
+ * 4. Rentang Tanggal: Menyaring transaksi hari ini ("TODAY") atau bulan ini ("THIS_MONTH").
+ *
+ * @return Daftar transaksi baru yang terisolasi sesuai kriteria pencarian tanpa mengubah list transaksi master.
+ */
 fun filterTransactions(
     transactions: List<TransactionEntity>,
     searchQuery: String = "",
@@ -72,6 +99,17 @@ fun filterTransactions(
     }
 }
 
+/**
+ * Menghitung kalkulasi agregat total keuangan dan menghasilkan instance baru [FinanceUiState].
+ *
+ * Logika Keuangan:
+ * - `totalIncome`: Menjumlahkan nominal seluruh transaksi bertipe "INCOME".
+ * - `totalExpense`: Menjumlahkan nominal seluruh transaksi bertipe "EXPENSE".
+ * - `totalBalance`: Jika terdapat daftar akun/rekening, saldo dihitung dari akumulasi `accounts.sumOf { it.balance }`.
+ *   Jika belum ada akun terdaftar, fallback menggunakan kalkulasi arus kas: `totalIncome - totalExpense`.
+ * - `filteredTransactions`: Dihasilkan melalui fungsi [filterTransactions] sehingga pemisahan list master
+ *   dan list yang dirender pada UI transaksi tetap terisolasi secara aman.
+ */
 fun calculateFinanceTotals(
     transactions: List<TransactionEntity>,
     accounts: List<AccountEntity> = emptyList(),

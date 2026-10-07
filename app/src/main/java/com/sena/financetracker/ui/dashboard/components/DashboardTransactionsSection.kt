@@ -1,5 +1,6 @@
 package com.sena.financetracker.ui.dashboard.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,36 +21,43 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.TransactionEntity
-import com.sena.financetracker.ui.components.NeobrutalBadge
 import com.sena.financetracker.ui.components.NeobrutalCard
-import com.sena.financetracker.ui.components.RetroExpenseDarkRed
-import com.sena.financetracker.ui.components.RetroExpenseRed
-import com.sena.financetracker.ui.components.RetroIncomeDarkGreen
-import com.sena.financetracker.ui.components.RetroIncomeGreen
-import com.sena.financetracker.ui.components.RetroTransferBlue
 import com.sena.financetracker.ui.components.RetroYellow
 import com.sena.financetracker.util.formatRupiah
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private val RetroExpenseRed = Color(0xFFEF4444)
+private val RetroExpenseDarkRed = Color(0xFFDC2626)
+private val RetroIncomeGreen = Color(0xFF22C55E)
+private val RetroIncomeDarkGreen = Color(0xFF16A34A)
+private val RetroTransferBlue = Color(0xFF3B82F6)
+private val RetroDateHeaderBg = Color(0xFFF1F5F9)
 
 @Composable
 fun DashboardTransactionsSection(
     transactions: List<TransactionEntity>,
-    selectedFilterTab: String,
-    onFilterTabSelected: (String) -> Unit,
+    selectedFilterTab: String = "ALL",
+    onFilterTabSelected: (String) -> Unit = {},
     searchQuery: String = "",
     onSearchQueryChange: (String) -> Unit = {},
     selectedDateFilter: String = "ALL",
@@ -63,19 +71,25 @@ fun DashboardTransactionsSection(
     modifier: Modifier = Modifier
 ) {
     val isAnyFilterActive = searchQuery.isNotBlank() ||
-            selectedCategoryFilter != null ||
+            selectedFilterTab != "ALL" ||
             selectedDateFilter != "ALL" ||
-            selectedFilterTab != "ALL"
+            selectedCategoryFilter != null
+
+    // Grouping transactions by date ("YYYY-MM-DD") sorted descending
+    val groupedTransactions = remember(transactions) {
+        transactions
+            .groupBy { it.date.take(10) }
+            .toList()
+            .sortedByDescending { it.first }
+    }
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // ── 1. Section Header ─────────────────────────────────────────────
+        // Section Header
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -83,104 +97,100 @@ fun DashboardTransactionsSection(
                 text = "RIWAYAT TRANSAKSI",
                 style = TextStyle(
                     fontWeight = FontWeight.Black,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     letterSpacing = 1.sp,
                     color = Color.Black
                 )
             )
-            NeobrutalBadge(
-                text = "${transactions.size} TRANSAKSI",
-                backgroundColor = Color.White
-            )
-        }
 
-        // ── 2. Interactive Search Bar ─────────────────────────────────────
-        NeobrutalSearchBar(
-            query = searchQuery,
-            onQueryChange = onSearchQueryChange
-        )
-
-        // ── 3. Filter Tabs (Semua / Pengeluaran / Pemasukan) ───────────────
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(end = 4.dp, bottom = 4.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .offset(x = 4.dp, y = 4.dp)
-                    .background(Color.Black, RectangleShape)
-            )
+            // Filter Tabs: SEMUA, KELUAR, MASUK
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White, RectangleShape)
-                    .border(2.dp, Color.Black, RectangleShape)
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                val filterTabs = listOf(
-                    Pair("ALL", "SEMUA"),
-                    Pair("EXPENSE", "PENGELUARAN"),
-                    Pair("INCOME", "PEMASUKAN")
-                )
-                filterTabs.forEachIndexed { index, (key, label) ->
-                    val isSelected = selectedFilterTab == key
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(if (isSelected) RetroYellow else Color.White)
-                            .clickable { onFilterTabSelected(key) }
-                            .padding(vertical = 9.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = label,
-                            style = TextStyle(
-                                fontWeight = FontWeight.Black,
-                                fontSize = 11.sp,
-                                letterSpacing = 1.sp,
-                                color = Color.Black
+                listOf(
+                    "ALL" to "SEMUA",
+                    "EXPENSE" to "KELUAR",
+                    "INCOME" to "MASUK"
+                ).forEach { (typeKey, label) ->
+                    val isSelected = selectedFilterTab.equals(typeKey, ignoreCase = true)
+                    Box(modifier = Modifier.padding(end = 2.dp, bottom = 2.dp)) {
+                        if (isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .offset(x = 2.dp, y = 2.dp)
+                                    .background(Color.Black, RectangleShape)
                             )
-                        )
-                    }
-                    if (index < filterTabs.size - 1) {
+                        }
                         Box(
                             modifier = Modifier
-                                .width(2.dp)
-                                .height(36.dp)
-                                .background(Color.Black)
-                        )
+                                .background(
+                                    if (isSelected) RetroYellow else Color.White,
+                                    RectangleShape
+                                )
+                                .border(
+                                    width = if (isSelected) 2.dp else 1.5.dp,
+                                    color = Color.Black,
+                                    shape = RectangleShape
+                                )
+                                .clickable { onFilterTabSelected(typeKey) }
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                style = TextStyle(
+                                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                    letterSpacing = 0.5.sp,
+                                    color = Color.Black
+                                )
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // ── 4. Date Range Filters (Semua / Hari Ini / Bulan Ini) ───────────
+        // Search Bar Neobrutalisme
+        NeobrutalSearchBar(
+            query = searchQuery,
+            onQueryChange = onSearchQueryChange
+        )
+
+        // Date Range Filters: SEMUA WAKTU, HARI INI, BULAN INI
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val dateOptions = listOf(
-                Pair("ALL", "SEMUA WAKTU"),
-                Pair("TODAY", "HARI INI"),
-                Pair("THIS_MONTH", "BULAN INI")
-            )
-            dateOptions.forEach { (key, label) ->
-                val isSelected = selectedDateFilter == key
-                Box(
-                    modifier = Modifier.padding(end = 2.dp, bottom = 2.dp)
-                ) {
+            listOf(
+                "ALL" to "SEMUA WAKTU",
+                "TODAY" to "HARI INI",
+                "THIS_MONTH" to "BULAN INI"
+            ).forEach { (key, label) ->
+                val isSelected = selectedDateFilter.equals(key, ignoreCase = true)
+                Box(modifier = Modifier.padding(end = 2.dp, bottom = 2.dp)) {
+                    if (isSelected) {
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .offset(x = 2.dp, y = 2.dp)
+                                .background(Color.Black, RectangleShape)
+                        )
+                    }
                     Box(
                         modifier = Modifier
-                            .matchParentSize()
-                            .offset(x = 2.dp, y = 2.dp)
-                            .background(Color.Black, RectangleShape)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .background(if (isSelected) RetroTransferBlue else Color.White, RectangleShape)
-                            .border(2.dp, Color.Black, RectangleShape)
+                            .background(
+                                if (isSelected) RetroTransferBlue else Color.White,
+                                RectangleShape
+                            )
+                            .border(
+                                width = if (isSelected) 2.dp else 1.5.dp,
+                                color = Color.Black,
+                                shape = RectangleShape
+                            )
                             .clickable { onDateFilterSelected(key) }
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
@@ -188,7 +198,7 @@ fun DashboardTransactionsSection(
                         Text(
                             text = label,
                             style = TextStyle(
-                                fontWeight = FontWeight.Black,
+                                fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
                                 fontSize = 10.sp,
                                 letterSpacing = 0.5.sp,
                                 color = if (isSelected) Color.White else Color.Black
@@ -199,83 +209,98 @@ fun DashboardTransactionsSection(
             }
         }
 
-        // ── 5. Category Chips Horizontal Scroll ───────────────────────────
-        if (categories.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // "SEMUA KATEGORI" Chip
-                val isAllCategoriesSelected = selectedCategoryFilter == null
-                Box(modifier = Modifier.padding(end = 2.dp, bottom = 2.dp)) {
+        // Horizontal Category Chips Scroll
+        val categoryScrollState = rememberScrollState()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(categoryScrollState),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // "Semua Kategori" Chip
+            val isAllCategoriesSelected = selectedCategoryFilter == null
+            Box(modifier = Modifier.padding(end = 2.dp, bottom = 2.dp)) {
+                if (isAllCategoriesSelected) {
                     Box(
                         modifier = Modifier
                             .matchParentSize()
                             .offset(x = 2.dp, y = 2.dp)
                             .background(Color.Black, RectangleShape)
                     )
-                    Box(
-                        modifier = Modifier
-                            .background(if (isAllCategoriesSelected) RetroYellow else Color.White, RectangleShape)
-                            .border(1.5.dp, Color.Black, RectangleShape)
-                            .clickable { onCategoryFilterSelected(null) }
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "SEMUA KATEGORI",
-                            style = TextStyle(
-                                fontWeight = FontWeight.Black,
-                                fontSize = 10.sp,
-                                color = Color.Black
-                            )
-                        )
-                    }
                 }
+                Box(
+                    modifier = Modifier
+                        .background(
+                            if (isAllCategoriesSelected) RetroYellow else Color.White,
+                            RectangleShape
+                        )
+                        .border(
+                            width = if (isAllCategoriesSelected) 2.dp else 1.5.dp,
+                            color = Color.Black,
+                            shape = RectangleShape
+                        )
+                        .clickable { onCategoryFilterSelected(null) }
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "SEMUA KATEGORI",
+                        style = TextStyle(
+                            fontWeight = if (isAllCategoriesSelected) FontWeight.Black else FontWeight.Bold,
+                            fontSize = 10.sp,
+                            letterSpacing = 0.5.sp,
+                            color = Color.Black
+                        )
+                    )
+                }
+            }
 
-                // Distinct Category Chips
-                val categoryNames = categories.map { it.name }.distinct()
-                categoryNames.forEach { catName ->
-                    val isCatSelected = selectedCategoryFilter.equals(catName, ignoreCase = true)
-                    Box(modifier = Modifier.padding(end = 2.dp, bottom = 2.dp)) {
+            // Category Items
+            categories.forEach { cat ->
+                val isSelected = selectedCategoryFilter?.equals(cat.name, ignoreCase = true) == true
+                Box(modifier = Modifier.padding(end = 2.dp, bottom = 2.dp)) {
+                    if (isSelected) {
                         Box(
                             modifier = Modifier
                                 .matchParentSize()
                                 .offset(x = 2.dp, y = 2.dp)
                                 .background(Color.Black, RectangleShape)
                         )
-                        Box(
-                            modifier = Modifier
-                                .background(if (isCatSelected) RetroYellow else Color(0xFFF8FAFC), RectangleShape)
-                                .border(1.5.dp, Color.Black, RectangleShape)
-                                .clickable {
-                                    if (isCatSelected) {
-                                        onCategoryFilterSelected(null)
-                                    } else {
-                                        onCategoryFilterSelected(catName)
-                                    }
-                                }
-                                .padding(horizontal = 10.dp, vertical = 5.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = catName.uppercase(),
-                                style = TextStyle(
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 10.sp,
-                                    color = Color.Black
-                                )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                if (isSelected) RetroYellow else Color.White,
+                                RectangleShape
                             )
-                        }
+                            .border(
+                                width = if (isSelected) 2.dp else 1.5.dp,
+                                color = Color.Black,
+                                shape = RectangleShape
+                            )
+                            .clickable {
+                                if (isSelected) onCategoryFilterSelected(null)
+                                else onCategoryFilterSelected(cat.name)
+                            }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = cat.name.uppercase(),
+                            style = TextStyle(
+                                fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                                fontSize = 10.sp,
+                                letterSpacing = 0.5.sp,
+                                color = Color.Black
+                            )
+                        )
                     }
                 }
             }
         }
 
-        // ── 6. Transactions List or Empty State ───────────────────────────
+        // Transactions List or Empty State
         if (transactions.isEmpty()) {
             NeobrutalCard(
                 backgroundColor = Color.White,
@@ -346,17 +371,90 @@ fun DashboardTransactionsSection(
         } else {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                transactions.forEach { tx ->
-                    TransactionNeobrutalItem(
-                        transaction = tx,
-                        onEdit = { onEditTransaction(tx) },
-                        onDelete = { onDeleteTransaction(tx) }
-                    )
+                groupedTransactions.forEach { (dateKey, itemsInDate) ->
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Sub-header tanggal Neobrutal
+                        NeobrutalDateHeader(dateStr = dateKey)
+
+                        // Transaksi pada tanggal ini
+                        itemsInDate.forEach { tx ->
+                            TransactionNeobrutalItem(
+                                transaction = tx,
+                                onEdit = { onEditTransaction(tx) },
+                                onDelete = { onDeleteTransaction(tx) }
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+/**
+ * Sub-header tanggal Neobrutal kecil dengan format rapi (matching web Transactions.jsx)
+ */
+@Composable
+private fun NeobrutalDateHeader(
+    dateStr: String,
+    modifier: Modifier = Modifier
+) {
+    val formattedLabel = remember(dateStr) {
+        formatNeobrutalDate(dateStr)
+    }
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .background(RetroDateHeaderBg, RectangleShape)
+                .border(1.5.dp, Color.Black, RectangleShape)
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = formattedLabel,
+                style = TextStyle(
+                    fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 11.sp,
+                    letterSpacing = 1.sp,
+                    color = Color.Black
+                )
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(1.5.dp)
+                .background(Color.Black.copy(alpha = 0.25f))
+        )
+    }
+}
+
+private fun formatNeobrutalDate(dateStr: String): String {
+    return try {
+        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        if (dateStr == todayStr) {
+            return "HARI INI • $dateStr"
+        }
+
+        val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateStr)
+        if (parsed != null) {
+            val displayFormat = SimpleDateFormat("dd MMM yyyy", Locale.forLanguageTag("id-ID"))
+            displayFormat.format(parsed).uppercase()
+        } else {
+            dateStr
+        }
+    } catch (_: Exception) {
+        dateStr
     }
 }
 
@@ -445,56 +543,102 @@ fun TransactionNeobrutalItem(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    NeobrutalBadge(
-                        text = transaction.category,
-                        backgroundColor = Color(0xFFF1F5F9),
-                        textColor = Color.Black
-                    )
-
-                    NeobrutalBadge(
-                        text = transaction.accountName,
-                        backgroundColor = RetroYellow.copy(alpha = 0.5f),
-                        textColor = Color.Black
-                    )
-
-                    Text(
-                        text = transaction.date,
-                        style = TextStyle(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp,
-                            color = Color.Gray
+                    // Category Badge
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFFF1F5F9), RectangleShape)
+                            .border(1.dp, Color.Black, RectangleShape)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = transaction.category.uppercase(),
+                            style = TextStyle(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp,
+                                letterSpacing = 0.5.sp,
+                                color = Color.Black
+                            )
                         )
-                    )
+                    }
+
+                    // Account Source Badge
+                    if (transaction.accountName.isNotBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFFE2E8F0), RectangleShape)
+                                .border(1.dp, Color.Black, RectangleShape)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = transaction.accountName.uppercase(),
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.sp,
+                                    letterSpacing = 0.5.sp,
+                                    color = Color.Black
+                                )
+                            )
+                        }
+                    }
                 }
             }
 
-            // Amount & Delete Button
+            // Amount & Actions (Edit + Delete)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "$amountPrefix${formatRupiah(transaction.amount)}",
-                    style = TextStyle(
-                        fontWeight = FontWeight.Black,
-                        fontSize = 14.sp,
-                        color = accentColor,
-                        fontFeatureSettings = "tnum"
+                Column(
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text(
+                        text = "$amountPrefix${formatRupiah(transaction.amount)}",
+                        style = TextStyle(
+                            fontWeight = FontWeight.Black,
+                            fontSize = 14.sp,
+                            color = accentColor
+                        )
                     )
-                )
+                    Text(
+                        text = transaction.date,
+                        style = TextStyle(
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.Gray
+                        )
+                    )
+                }
 
+                // Edit Button
                 Box(
                     modifier = Modifier
-                        .size(30.dp)
-                        .background(RetroExpenseRed, RectangleShape)
-                        .border(2.dp, Color.Black, RectangleShape)
+                        .size(32.dp)
+                        .background(Color.White, RectangleShape)
+                        .border(1.5.dp, Color.Black, RectangleShape)
+                        .clickable(onClick = onEdit),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Transaksi",
+                        tint = Color.Black,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                // Delete Button
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(Color.White, RectangleShape)
+                        .border(1.5.dp, Color.Black, RectangleShape)
                         .clickable(onClick = onDelete),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "Hapus",
-                        tint = Color.White,
+                        contentDescription = "Hapus Transaksi",
+                        tint = Color.Black,
                         modifier = Modifier.size(16.dp)
                     )
                 }

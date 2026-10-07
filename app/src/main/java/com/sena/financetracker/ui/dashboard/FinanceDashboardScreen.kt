@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sena.financetracker.data.AccountEntity
+import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.ui.components.NeobrutalFastAddDialog
 import com.sena.financetracker.ui.components.RetroCanvas
@@ -43,9 +44,11 @@ import com.sena.financetracker.ui.dashboard.components.DashboardBudgetsSection
 import com.sena.financetracker.ui.dashboard.components.DashboardTransactionsSection
 import com.sena.financetracker.ui.dashboard.components.NeobrutalAddAccountDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalAddBudgetDialog
+import com.sena.financetracker.ui.dashboard.components.NeobrutalConfirmDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalEditTransactionDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalReconcileDialog
 import com.sena.financetracker.ui.dashboard.components.NeobrutalTransferDialog
+import com.sena.financetracker.util.formatRupiah
 import com.sena.financetracker.viewmodel.FinanceUiState
 import com.sena.financetracker.viewmodel.FinanceViewModel
 import java.text.SimpleDateFormat
@@ -124,6 +127,10 @@ fun FinanceDashboardContent(
     var reconcilingAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
 
+    // State untuk konfirmasi hapus Neobrutal (Safety UX)
+    var transactionToDelete by remember { mutableStateOf<TransactionEntity?>(null) }
+    var budgetToDelete by remember { mutableStateOf<BudgetProgressItem?>(null) }
+
     val currentMonthText = remember {
         SimpleDateFormat("MMMM yyyy", Locale.forLanguageTag("id-ID")).format(Date()).uppercase()
     }
@@ -188,7 +195,10 @@ fun FinanceDashboardContent(
                 DashboardBudgetsSection(
                     budgets = uiState.budgets,
                     onAddBudgetClick = { showAddBudgetDialog = true },
-                    onDeleteBudgetClick = onDeleteBudget
+                    onDeleteBudgetClick = { budgetId ->
+                        val item = uiState.budgets.find { it.budget.id == budgetId }
+                        budgetToDelete = item
+                    }
                 )
             }
 
@@ -205,13 +215,16 @@ fun FinanceDashboardContent(
                     selectedCategoryFilter = uiState.selectedCategoryFilter,
                     onCategoryFilterSelected = onCategoryFilterSelected,
                     onResetFilters = onResetFilters,
-                    onDeleteTransaction = onDeleteTransaction,
+                    onDeleteTransaction = { tx ->
+                        transactionToDelete = tx
+                    },
                     onEditTransaction = { editingTransaction = it }
                 )
             }
         }
     }
 
+    // Modal Dialog Fast Add Transaksi
     if (showAddDialog) {
         NeobrutalFastAddDialog(
             accounts = uiState.accounts,
@@ -221,6 +234,7 @@ fun FinanceDashboardContent(
         )
     }
 
+    // Modal Dialog Transfer
     if (showTransferDialog) {
         NeobrutalTransferDialog(
             accounts = uiState.accounts,
@@ -232,6 +246,7 @@ fun FinanceDashboardContent(
         )
     }
 
+    // Modal Dialog Tambah Akun
     if (showAddAccountDialog) {
         NeobrutalAddAccountDialog(
             onDismiss = { showAddAccountDialog = false },
@@ -242,6 +257,7 @@ fun FinanceDashboardContent(
         )
     }
 
+    // Modal Dialog Rekonsiliasi
     reconcilingAccount?.let { accToReconcile ->
         NeobrutalReconcileDialog(
             account = accToReconcile,
@@ -253,6 +269,7 @@ fun FinanceDashboardContent(
         )
     }
 
+    // Modal Dialog Tambah Budget
     if (showAddBudgetDialog) {
         NeobrutalAddBudgetDialog(
             categories = uiState.categories,
@@ -264,6 +281,7 @@ fun FinanceDashboardContent(
         )
     }
 
+    // Modal Dialog Edit Transaksi
     editingTransaction?.let { txToEdit ->
         NeobrutalEditTransactionDialog(
             transaction = txToEdit,
@@ -273,6 +291,40 @@ fun FinanceDashboardContent(
             onSave = { updatedTx ->
                 onUpdateTransaction(txToEdit, updatedTx)
                 editingTransaction = null
+            }
+        )
+    }
+
+    // Safety UX: Dialog Konfirmasi Hapus Transaksi
+    transactionToDelete?.let { tx ->
+        NeobrutalConfirmDialog(
+            title = "HAPUS TRANSAKSI?",
+            message = "Apakah kamu yakin ingin menghapus transaksi \"${tx.title}\" senilai Rp ${formatRupiah(tx.amount)}? Saldo rekening terkait akan otomatis disesuaikan kembali.",
+            confirmButtonText = "HAPUS",
+            cancelButtonText = "BATAL",
+            onConfirm = {
+                onDeleteTransaction(tx)
+                transactionToDelete = null
+            },
+            onDismiss = {
+                transactionToDelete = null
+            }
+        )
+    }
+
+    // Safety UX: Dialog Konfirmasi Hapus Anggaran
+    budgetToDelete?.let { item ->
+        NeobrutalConfirmDialog(
+            title = "HAPUS ANGGARAN?",
+            message = "Apakah kamu yakin ingin menghapus anggaran \"${item.budget.name}\" (${item.budget.category}) dengan limit Rp ${formatRupiah(item.budget.limitAmount)}? Data riwayat transaksi kamu tidak akan terhapus.",
+            confirmButtonText = "HAPUS",
+            cancelButtonText = "BATAL",
+            onConfirm = {
+                onDeleteBudget(item.budget.id)
+                budgetToDelete = null
+            },
+            onDismiss = {
+                budgetToDelete = null
             }
         )
     }
