@@ -24,11 +24,12 @@ class AiInsightServiceTest {
 
         assertTrue(jsonString.contains("\"model\":\"openai/gpt-oss-120b\""))
         assertTrue(jsonString.contains("\"temperature\":0.6"))
-        assertTrue(jsonString.contains("\"max_tokens\":350"))
+        assertTrue(jsonString.contains("\"max_tokens\":1000"))
         assertTrue(jsonString.contains("\"role\":\"system\""))
         assertTrue(jsonString.contains("Pak Hemat"))
+        assertTrue(jsonString.contains("Peer Savage"))
         assertTrue(jsonString.contains("Aji"))
-        assertTrue(jsonString.contains("GROUNDING"))
+        assertTrue(jsonString.contains("GROUNDING MUTLAK"))
         assertTrue(jsonString.contains("\"role\":\"user\""))
         assertTrue(jsonString.contains("Evaluasi keuangan Aji ini, Pak!"))
     }
@@ -104,7 +105,7 @@ class AiInsightServiceTest {
             periodTitle = "Bulan Ini"
         )
 
-        assertTrue(insight.contains("Ji,"))
+        assertTrue(insight.contains("Bos") || insight.contains("Ji"))
         assertTrue(insight.contains("boncos"))
         assertTrue(insight.contains("Hiburan"))
     }
@@ -123,8 +124,9 @@ class AiInsightServiceTest {
             periodTitle = "Bulan Ini"
         )
 
-        assertTrue(insight.contains("Defisit jebol, Ji!"))
+        assertTrue(insight.contains("Defisit parah, Bos!"))
         assertTrue(insight.contains("Elektronik"))
+        assertTrue(insight.contains("sok sultan"))
     }
 
     @Test
@@ -140,7 +142,7 @@ class AiInsightServiceTest {
             periodTitle = "Bulan Ini"
         )
 
-        assertTrue(insight.contains("Gokil Ji,"))
+        assertTrue(insight.contains("Wih tumben waras, Ji!"))
         assertTrue(insight.contains("85%"))
     }
 

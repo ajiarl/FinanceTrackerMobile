@@ -24,7 +24,7 @@ object AiInsightService {
     private const val READ_TIMEOUT_MS = 10_000
 
     private const val SYSTEM_PROMPT =
-        "Kamu adalah Pak Hemat, konsultan keuangan pribadi Aji yang santai, ceplas-ceplos gaya Indonesia/Jaksel, sarkas-kocak, to-the-point, dan matematis tajam tanpa basa-basi formal atau filler AI. Panggil user 'Aji'. Evaluasi rasio cashflow, saving rate, dan kebocoran dana dalam 3-4 kalimat padat. ATURAN GROUNDING KETAT: Kamu WAJIB mengacu 100% pada angka pemasukan, pengeluaran, saving rate %, dan nama kategori riil yang diberikan pada prompt. DILARANG KERAS mengarang, mengubah nominal, atau menyebut kategori fiktif di luar data."
+        "Kamu adalah Pak Hemat, Peer Savage untuk Aji. Panggil user 'Aji', atau sesekali sindir 'Bos' saat kondisi kas minus atau boncos parah. ATURAN GROUNDING MUTLAK: Kamu WAJIB mengacu 100% pada angka riil yang diberikan (Pemasukan, Pengeluaran, Sisa Kas, Saving Rate %, dan Kategori Pengeluaran Terbesar). DILARANG KERAS mengarang, mengubah nominal, atau menyebut kategori fiktif di luar data! ROASTING KONTEKSTUAL: Kaitkan nama kategori terbesar dengan sindiran gaya hidup nyata (misal Makanan & Minuman = ngopi aesthetic/jajan, Belanja = kalap diskon e-commerce). REAKSI KONDISI: Jika defisit atau boros, semprot savage tanpa basa-basi pembuka, tampar dengan fakta minusnya, dan beri 1 instruksi konkret ngerem jajan. Jika surplus atau hemat, puji skeptis-waspada ('Wih tumben waras'), ingatkan kunci sisa saldo ke tabungan atau investasi sebelum nafsu belanja kumat. FORMAT: Tulis langsung dalam 2-3 kalimat padat mengalir dalam satu paragraf tunggal (bukan bullet points). DILARANG memakai salam formal pembuka ('Halo Aji', 'Berdasarkan data') dan DILARANG memakai tanda em dash."
 
     /**
      * Meminta analisis AI dari Groq Cloud secara background IO dengan fallback aturan lokal jika gagal / offline.
@@ -125,7 +125,7 @@ object AiInsightService {
         val escapedSys = escape(SYSTEM_PROMPT)
         val escapedUser = escape(userPrompt)
 
-        return """{"model":"$GROQ_MODEL","temperature":0.6,"max_tokens":350,"messages":[{"role":"system","content":"$escapedSys"},{"role":"user","content":"$escapedUser"}]}""".trimIndent()
+        return """{"model":"$GROQ_MODEL","temperature":0.6,"max_tokens":1000,"messages":[{"role":"system","content":"$escapedSys"},{"role":"user","content":"$escapedUser"}]}""".trimIndent()
     }
 
     /**
@@ -241,7 +241,7 @@ object AiInsightService {
             $categoryLines
             - Total Catatan Transaksi: $txCount transaksi
 
-            Evaluasi keuangan Aji secara blak-blakan, matematis, sarkas-kocak, dan tanpa basa-basi formal. Soroti pos pengeluaran di atas dan kasih instruksi konkret agar dompet Aji tetap sehat!
+            Evaluasi keuangan Aji secara blak-blakan, matematis, sarkas-kocak, dan tanpa basa-basi formal sesuai persona Pak Hemat. Roasting kategori pengeluaran terbesar di atas secara kontekstual dan kasih instruksi konkret agar dompet Aji selamat!
         """.trimIndent()
     }
 
@@ -262,6 +262,17 @@ object AiInsightService {
         val topCategoryName = topCategories.firstOrNull()?.first ?: "pos belanja"
         val topCategoryAmount = topCategories.firstOrNull()?.second ?: 0.0
 
+        val categoryRoast = when {
+            topCategoryName.contains("makan", ignoreCase = true) || topCategoryName.contains("kuliner", ignoreCase = true) ->
+                "Kebanyakan ngopi aesthetic sama jajan delivery bikin dompet gepeng."
+            topCategoryName.contains("belanja", ignoreCase = true) || topCategoryName.contains("shop", ignoreCase = true) ->
+                "Kalap diskon e-commerce lagi kan lu?"
+            topCategoryName.contains("hiburan", ignoreCase = true) || topCategoryName.contains("game", ignoreCase = true) ->
+                "Self-reward berlebihan itu aslinya bunuh diri finansial pelan-pelan."
+            else ->
+                "Pos belanja ini jelas-jelas nyedot porsi kas paling rakus."
+        }
+
         val breakdownSnippet = if (topCategories.size > 1) {
             " Tiga pos penyedot utama: " + topCategories.joinToString(", ") {
                 "${it.first} (Rp ${rupiahFormat.format(it.second.toLong())})"
@@ -272,19 +283,19 @@ object AiInsightService {
 
         return when {
             totalIncome <= 0 && totalExpense > 0 -> {
-                "Ji, di $periodTitle kamu udah boncos Rp ${rupiahFormat.format(totalExpense.toLong())} padahal pemasukan masih nol melompong! Pos '$topCategoryName' paling getol ngabisin dana ($breakdownSnippet). Rem darurat sekarang sebelum kas kamu sekarat total!"
+                "Waduh Bos, kamu boncos Rp ${rupiahFormat.format(totalExpense.toLong())} di $periodTitle padahal pemasukan masih nol melompong! Kategori '$topCategoryName' nembus Rp ${rupiahFormat.format(topCategoryAmount.toLong())}, $categoryRoast$breakdownSnippet Rem darurat jajan lu hari ini juga sebelum kas sekarat total!"
             }
             totalIncome > 0 && totalExpense > totalIncome -> {
-                "Defisit jebol, Ji! Pengeluaranmu Rp ${rupiahFormat.format(totalExpense.toLong())} udah numpahin pemasukan minus Rp ${rupiahFormat.format((-netSavings).toLong())}. Kategori '$topCategoryName' (Rp ${rupiahFormat.format(topCategoryAmount.toLong())}) jadi biang keroknya.$breakdownSnippet Jangan sok sultan dulu, pangkas pos sekunder hari ini juga!"
+                "Defisit parah, Bos! Pengeluaranmu tembus Rp ${rupiahFormat.format(totalExpense.toLong())} numpahin pemasukan sampai minus Rp ${rupiahFormat.format((-netSavings).toLong())}. Kategori '$topCategoryName' (Rp ${rupiahFormat.format(topCategoryAmount.toLong())}) jadi biang keroknya, $categoryRoast$breakdownSnippet Pangkas pengeluaran sekunder detik ini juga, jangan sok sultan!"
             }
             savingRate in 0..19 -> {
-                "Saving rate kamu cuma $savingRate% di $periodTitle, tipis banget kayak tisu basah, Ji! Duitmu habis kesedot pos '$topCategoryName' (Rp ${rupiahFormat.format(topCategoryAmount.toLong())}).$breakdownSnippet Evaluasi jajan impulsif biar ada sisa dana darurat yang waras."
+                "Saving rate kamu cuma $savingRate% di $periodTitle, tipis banget kayak tisu basah, Ji! Duitmu habis disedot '$topCategoryName' sebesar Rp ${rupiahFormat.format(topCategoryAmount.toLong())}, $categoryRoast$breakdownSnippet Evaluasi kebiasaan impulsif ini biar ada dana darurat yang waras."
             }
             savingRate in 20..49 -> {
-                "Cashflow kamu masih napas aman dengan saving rate $savingRate% (tabungan bersih Rp ${rupiahFormat.format(netSavings.toLong())}), Ji. Tapi awas pos '$topCategoryName' udah nyentuh Rp ${rupiahFormat.format(topCategoryAmount.toLong())}.$breakdownSnippet Jangan lengah biar grafik tabunganmu gak melorot!"
+                "Cashflow kamu masih napas aman dengan saving rate $savingRate% dan sisa kas Rp ${rupiahFormat.format(netSavings.toLong())}, Ji. Tapi jangan santai dulu karena '$topCategoryName' udah nelan Rp ${rupiahFormat.format(topCategoryAmount.toLong())}.$breakdownSnippet Kunci sisa saldo ke tabungan sebelum nafsu belanja kumat lagi!"
             }
             else -> {
-                "Gokil Ji, saving rate kamu tembus $savingRate% di $periodTitle dengan surplus Rp ${rupiahFormat.format(netSavings.toLong())}! Pengeluaran terbesar di '$topCategoryName' masih terkontrol rapi.$breakdownSnippet Disiplin kayak gini dipertahankan, bentar lagi kebeli masa depan tenang!"
+                "Wih tumben waras, Ji! Saving rate kamu tembus $savingRate% di $periodTitle dengan surplus Rp ${rupiahFormat.format(netSavings.toLong())}, pengeluaran terbesar di '$topCategoryName' juga terkontrol rapi. Segera amankan sisa saldo ke tabungan atau investasi sebelum godaan promo merusak kedisiplinan ini!"
             }
         }
     }
