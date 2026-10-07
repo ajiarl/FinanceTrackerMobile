@@ -44,6 +44,7 @@ import com.sena.financetracker.ui.dashboard.components.NeobrutalTransferDialog
 import com.sena.financetracker.ui.dashboard.screens.AccountsScreen
 import com.sena.financetracker.ui.dashboard.screens.BudgetsScreen
 import com.sena.financetracker.ui.dashboard.screens.HomeScreen
+import com.sena.financetracker.ui.dashboard.screens.ReportsScreen
 import com.sena.financetracker.ui.dashboard.screens.TransactionsScreen
 import com.sena.financetracker.ui.navigation.NeobrutalBottomNav
 import com.sena.financetracker.ui.navigation.Screen
@@ -95,6 +96,7 @@ fun FinanceDashboardScreen(
         onDateFilterSelected = { viewModel.setSelectedDateFilter(it) },
         onCategoryFilterSelected = { viewModel.setSelectedCategoryFilter(it) },
         onResetFilters = { viewModel.clearFilters() },
+        onReportsPresetSelected = { viewModel.setReportsPeriodPreset(it) },
         modifier = modifier
     )
 }
@@ -125,6 +127,7 @@ fun FinanceDashboardContent(
     onDateFilterSelected: (String) -> Unit = {},
     onCategoryFilterSelected: (String?) -> Unit = {},
     onResetFilters: () -> Unit = {},
+    onReportsPresetSelected: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -222,6 +225,14 @@ fun FinanceDashboardContent(
                     onAddAccountClick = { showAddAccountDialog = true },
                     onTransferClick = { showTransferDialog = true },
                     onAccountClick = { reconcilingAccount = it }
+                )
+            }
+
+            // Tab 5: Laporan & Grafik Analisis
+            composable(Screen.Reports.route) {
+                ReportsScreen(
+                    uiState = uiState,
+                    onPresetSelected = onReportsPresetSelected
                 )
             }
         }

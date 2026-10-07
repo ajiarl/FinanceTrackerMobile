@@ -5,8 +5,60 @@ import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.TransactionEntity
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+/**
+ * Data item komposisi pengeluaran per kategori untuk laporan analitik.
+ *
+ * @property category Nama kategori pengeluaran.
+ * @property totalAmount Total nominal pengeluaran dalam mata uang IDR.
+ * @property percentage Persentase kontribusi terhadap total pengeluaran (0 - 100).
+ * @property color Warna hex kategori untuk styling bar visual.
+ */
+data class CategoryBreakdownItem(
+    val category: String,
+    val totalAmount: Double,
+    val percentage: Int,
+    val color: String = "#000000"
+)
+
+/**
+ * Data item diagram batang arus kas per periode (bulan/minggu).
+ *
+ * @property label Label sumbu X periode (misal "Jul 26", "Agt 26", "Okt 26").
+ * @property income Total pemasukan pada periode tersebut.
+ * @property expense Total pengeluaran pada periode tersebut.
+ */
+data class CashflowBarItem(
+    val label: String,
+    val income: Double,
+    val expense: Double
+)
+
+/**
+ * Ringkasan kalkulasi analitik laporan keuangan.
+ *
+ * @property periodPreset Filter preset waktu ("THIS_MONTH", "LAST_MONTH", "LAST_3_MONTHS", "ALL_TIME").
+ * @property totalIncome Total pemasukan pada periode analitik.
+ * @property totalExpense Total pengeluaran pada periode analitik.
+ * @property netSavings Selisih bersih pemasukan dikurangi pengeluaran.
+ * @property savingRate Persentase rasio tabungan (Saving Rate %).
+ * @property savingStatus Status rasio tabungan ("HEMAT", "NORMAL", "BOROS").
+ * @property categoryBreakdown Daftar pengeluaran per kategori terurut dari terbesar.
+ * @property cashflowBars Data diagram batang perbandingan pemasukan vs pengeluaran.
+ */
+data class ReportsAnalyticsState(
+    val periodPreset: String = "THIS_MONTH",
+    val totalIncome: Double = 0.0,
+    val totalExpense: Double = 0.0,
+    val netSavings: Double = 0.0,
+    val savingRate: Int = 0,
+    val savingStatus: String = "NORMAL", // "HEMAT", "NORMAL", "BOROS"
+    val categoryBreakdown: List<CategoryBreakdownItem> = emptyList(),
+    val cashflowBars: List<CashflowBarItem> = emptyList()
+)
 
 /**
  * Model representasi keadaan UI (UI State) yang immutabel untuk layar utama dashboard keuangan.
@@ -25,6 +77,7 @@ import java.util.Locale
  * @property selectedCategoryFilter Filter kategori transaksi terpilih (null = semua kategori).
  * @property selectedDateFilter Filter rentang waktu ("ALL", "TODAY", "THIS_MONTH").
  * @property selectedFilterTab Filter tab jenis transaksi ("ALL", "EXPENSE", "INCOME").
+ * @property reportsAnalytics State kalkulasi laporan analitik & grafik arus kas.
  */
 data class FinanceUiState(
     val transactions: List<TransactionEntity> = emptyList(),
@@ -40,7 +93,8 @@ data class FinanceUiState(
     val searchQuery: String = "",
     val selectedCategoryFilter: String? = null,
     val selectedDateFilter: String = "ALL", // "ALL", "TODAY", "THIS_MONTH"
-    val selectedFilterTab: String = "ALL" // "ALL", "EXPENSE", "INCOME"
+    val selectedFilterTab: String = "ALL", // "ALL", "EXPENSE", "INCOME"
+    val reportsAnalytics: ReportsAnalyticsState = ReportsAnalyticsState()
 )
 
 /**
@@ -100,6 +154,173 @@ fun filterTransactions(
 }
 
 /**
+ * Menghitung analitik laporan keuangan murni (pure function) berdasarkan transaksi dan preset periode:
+ * - "THIS_MONTH": Transaksi pada bulan berjalan ("YYYY-MM").
+ * - "LAST_MONTH": Transaksi pada bulan sebelumnya ("YYYY-MM").
+ * - "LAST_3_MONTHS": Transaksi pada 3 bulan kalender terakhir.
+ * - "ALL_TIME": Seluruh transaksi tercatat.
+ */
+fun calculateReportsAnalytics(
+    transactions: List<TransactionEntity>,
+    categories: List<CategoryEntity> = emptyList(),
+    preset: String = "THIS_MONTH",
+    referenceDate: Date = Date()
+): ReportsAnalyticsState {
+    val cal = Calendar.getInstance().apply { time = referenceDate }
+    val sdfMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+
+    val thisMonthStr = sdfMonth.format(cal.time)
+
+    val lastMonthCal = Calendar.getInstance().apply {
+        time = referenceDate
+        add(Calendar.MONTH, -1)
+    }
+    val lastMonthStr = sdfMonth.format(lastMonthCal.time)
+
+    val last3MonthsSet = mutableSetOf<String>()
+    for (i in 0..2) {
+        val c = Calendar.getInstance().apply {
+            time = referenceDate
+            add(Calendar.MONTH, -i)
+        }
+        last3MonthsSet.add(sdfMonth.format(c.time))
+    }
+
+    // 1. Filter transaksi berdasarkan preset periode
+    val periodTransactions = transactions.filter { tx ->
+        val txMonth = if (tx.date.length >= 7) tx.date.take(7) else ""
+        when (preset) {
+            "THIS_MONTH" -> txMonth == thisMonthStr
+            "LAST_MONTH" -> txMonth == lastMonthStr
+            "LAST_3_MONTHS" -> last3MonthsSet.contains(txMonth)
+            "ALL_TIME" -> true
+            else -> true
+        }
+    }
+
+    val periodIncome = periodTransactions
+        .filter { it.type.equals("INCOME", ignoreCase = true) }
+        .sumOf { it.amount }
+
+    val periodExpense = periodTransactions
+        .filter { it.type.equals("EXPENSE", ignoreCase = true) }
+        .sumOf { it.amount }
+
+    val netSavings = periodIncome - periodExpense
+
+    // Saving Rate % = (netSavings / totalIncome) * 100 jika income > 0
+    val savingRate = if (periodIncome > 0) {
+        val rate = ((netSavings / periodIncome) * 100).toInt()
+        rate.coerceIn(-100, 100)
+    } else if (periodExpense > 0) {
+        -100
+    } else {
+        0
+    }
+
+    val savingStatus = when {
+        periodIncome == 0.0 && periodExpense == 0.0 -> "NORMAL"
+        savingRate >= 30 -> "HEMAT"
+        savingRate >= 10 -> "NORMAL"
+        else -> "BOROS"
+    }
+
+    // 2. Breakdown Pengeluaran per Kategori
+    val categoryColorMap = categories.associate { it.name.lowercase() to it.color }
+    val defaultColors = listOf("#F97316", "#3B82F6", "#EC4899", "#8B5CF6", "#10B981", "#EAB308", "#64748B")
+
+    val expenseTransactions = periodTransactions.filter { it.type.equals("EXPENSE", ignoreCase = true) }
+    val groupedByCategory = expenseTransactions.groupBy { it.category }
+
+    val categoryBreakdown = groupedByCategory.map { (catName, txList) ->
+        val totalCatAmount = txList.sumOf { it.amount }
+        val pct = if (periodExpense > 0) {
+            ((totalCatAmount / periodExpense) * 100).toInt()
+        } else {
+            0
+        }
+        val col = categoryColorMap[catName.lowercase()] ?: defaultColors[Math.abs(catName.hashCode()) % defaultColors.size]
+        CategoryBreakdownItem(
+            category = catName,
+            totalAmount = totalCatAmount,
+            percentage = pct,
+            color = col
+        )
+    }.sortedByDescending { it.totalAmount }
+
+    // 3. Breakdown Cashflow Bar Data
+    val sdfDisplayMonth = SimpleDateFormat("MMM yy", Locale.forLanguageTag("id-ID"))
+    val cashflowBars = mutableListOf<CashflowBarItem>()
+
+    when (preset) {
+        "THIS_MONTH", "LAST_MONTH" -> {
+            // Tampilkan perbandingan 3 bulan terakhir agar diagram batang selalu informatif
+            for (i in 2 downTo 0) {
+                val c = Calendar.getInstance().apply {
+                    time = referenceDate
+                    add(Calendar.MONTH, -i)
+                }
+                val mKey = sdfMonth.format(c.time)
+                val mLabel = sdfDisplayMonth.format(c.time).uppercase()
+                val mIncome = transactions
+                    .filter { it.type.equals("INCOME", ignoreCase = true) && it.date.startsWith(mKey) }
+                    .sumOf { it.amount }
+                val mExpense = transactions
+                    .filter { it.type.equals("EXPENSE", ignoreCase = true) && it.date.startsWith(mKey) }
+                    .sumOf { it.amount }
+                cashflowBars.add(CashflowBarItem(label = mLabel, income = mIncome, expense = mExpense))
+            }
+        }
+        "LAST_3_MONTHS" -> {
+            for (i in 2 downTo 0) {
+                val c = Calendar.getInstance().apply {
+                    time = referenceDate
+                    add(Calendar.MONTH, -i)
+                }
+                val mKey = sdfMonth.format(c.time)
+                val mLabel = sdfDisplayMonth.format(c.time).uppercase()
+                val mIncome = transactions
+                    .filter { it.type.equals("INCOME", ignoreCase = true) && it.date.startsWith(mKey) }
+                    .sumOf { it.amount }
+                val mExpense = transactions
+                    .filter { it.type.equals("EXPENSE", ignoreCase = true) && it.date.startsWith(mKey) }
+                    .sumOf { it.amount }
+                cashflowBars.add(CashflowBarItem(label = mLabel, income = mIncome, expense = mExpense))
+            }
+        }
+        "ALL_TIME" -> {
+            // Tampilkan hingga 4 bulan terakhir
+            for (i in 3 downTo 0) {
+                val c = Calendar.getInstance().apply {
+                    time = referenceDate
+                    add(Calendar.MONTH, -i)
+                }
+                val mKey = sdfMonth.format(c.time)
+                val mLabel = sdfDisplayMonth.format(c.time).uppercase()
+                val mIncome = transactions
+                    .filter { it.type.equals("INCOME", ignoreCase = true) && it.date.startsWith(mKey) }
+                    .sumOf { it.amount }
+                val mExpense = transactions
+                    .filter { it.type.equals("EXPENSE", ignoreCase = true) && it.date.startsWith(mKey) }
+                    .sumOf { it.amount }
+                cashflowBars.add(CashflowBarItem(label = mLabel, income = mIncome, expense = mExpense))
+            }
+        }
+    }
+
+    return ReportsAnalyticsState(
+        periodPreset = preset,
+        totalIncome = periodIncome,
+        totalExpense = periodExpense,
+        netSavings = netSavings,
+        savingRate = savingRate,
+        savingStatus = savingStatus,
+        categoryBreakdown = categoryBreakdown,
+        cashflowBars = cashflowBars
+    )
+}
+
+/**
  * Menghitung kalkulasi agregat total keuangan dan menghasilkan instance baru [FinanceUiState].
  *
  * Logika Keuangan:
@@ -109,6 +330,7 @@ fun filterTransactions(
  *   Jika belum ada akun terdaftar, fallback menggunakan kalkulasi arus kas: `totalIncome - totalExpense`.
  * - `filteredTransactions`: Dihasilkan melalui fungsi [filterTransactions] sehingga pemisahan list master
  *   dan list yang dirender pada UI transaksi tetap terisolasi secara aman.
+ * - `reportsAnalytics`: Agregasi analitik laporan, rasio tabungan, breakdown kategori, dan cashflow bars.
  */
 fun calculateFinanceTotals(
     transactions: List<TransactionEntity>,
@@ -119,7 +341,9 @@ fun calculateFinanceTotals(
     selectedCategoryFilter: String? = null,
     selectedDateFilter: String = "ALL",
     selectedFilterTab: String = "ALL",
-    currentDate: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+    reportsPreset: String = "THIS_MONTH",
+    currentDate: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
+    referenceDate: Date = Date()
 ): FinanceUiState {
     val totalIncome = transactions
         .filter { it.type.equals("INCOME", ignoreCase = true) }
@@ -144,6 +368,13 @@ fun calculateFinanceTotals(
         currentDate = currentDate
     )
 
+    val reportsState = calculateReportsAnalytics(
+        transactions = transactions,
+        categories = categories,
+        preset = reportsPreset,
+        referenceDate = referenceDate
+    )
+
     return FinanceUiState(
         transactions = transactions,
         filteredTransactions = filtered,
@@ -156,6 +387,7 @@ fun calculateFinanceTotals(
         searchQuery = searchQuery,
         selectedCategoryFilter = selectedCategoryFilter,
         selectedDateFilter = selectedDateFilter,
-        selectedFilterTab = selectedFilterTab
+        selectedFilterTab = selectedFilterTab,
+        reportsAnalytics = reportsState
     )
 }

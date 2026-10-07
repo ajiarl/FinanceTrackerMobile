@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.InsertChartOutlined
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -19,39 +20,48 @@ sealed class Screen(
     val title: String,
     val icon: ImageVector
 ) {
-    object Dashboard : Screen(
+    data object Dashboard : Screen(
         route = "dashboard",
         title = "Beranda",
         icon = Icons.Default.Home
     )
 
-    object Transactions : Screen(
+    data object Transactions : Screen(
         route = "transactions",
         title = "Transaksi",
         icon = Icons.AutoMirrored.Filled.ReceiptLong
     )
 
-    object Budgets : Screen(
+    data object Budgets : Screen(
         route = "budgets",
         title = "Anggaran",
         icon = Icons.Default.PieChart
     )
 
-    object Accounts : Screen(
+    data object Accounts : Screen(
         route = "accounts",
         title = "Akun",
         icon = Icons.Default.AccountBalanceWallet
     )
 
+    data object Reports : Screen(
+        route = "reports",
+        title = "Laporan",
+        icon = Icons.Default.InsertChartOutlined
+    )
+
     companion object {
         /**
-         * Seluruh daftar layar tab bottom navigation utama.
+         * Seluruh daftar layar tab bottom navigation utama (5 Tab: Beranda, Transaksi, Anggaran, Akun, Laporan).
          */
-        val bottomNavItems = listOf(
-            Dashboard,
-            Transactions,
-            Budgets,
-            Accounts
-        )
+        val bottomNavItems: List<Screen> by lazy {
+            listOf(
+                Dashboard,
+                Transactions,
+                Budgets,
+                Accounts,
+                Reports
+            )
+        }
     }
 }

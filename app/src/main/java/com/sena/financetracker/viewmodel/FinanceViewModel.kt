@@ -41,6 +41,7 @@ class FinanceViewModel(
     private val _selectedCategoryFilter = MutableStateFlow<String?>(null)
     private val _selectedDateFilter = MutableStateFlow("ALL")
     private val _selectedFilterTab = MutableStateFlow("ALL")
+    private val _reportsPeriodPreset = MutableStateFlow("THIS_MONTH")
 
     init {
         observeData()
@@ -50,7 +51,8 @@ class FinanceViewModel(
         val query: String,
         val category: String?,
         val dateFilter: String,
-        val typeFilter: String
+        val typeFilter: String,
+        val reportsPreset: String
     )
 
     private data class DataBundle(
@@ -64,18 +66,19 @@ class FinanceViewModel(
      * Mengobservasi dan menggabungkan aliran basis data Room/SQLite bersama parameter filter.
      *
      * Alur:
-     * 1. Menggabungkan 4 StateFlow filter menjadi aliran [FilterParams].
+     * 1. Menggabungkan 5 StateFlow filter menjadi aliran [FilterParams].
      * 2. Menggabungkan 4 Flow database dari repository menjadi [DataBundle].
-     * 3. Mengkalkulasi total keuangan riil serta menyaring [FinanceUiState.filteredTransactions].
+     * 3. Mengkalkulasi total keuangan riil, menyaring [FinanceUiState.filteredTransactions], serta kalkulasi [ReportsAnalyticsState].
      */
     private fun observeData() {
         val filterParamsFlow = combine(
             _searchQuery,
             _selectedCategoryFilter,
             _selectedDateFilter,
-            _selectedFilterTab
-        ) { query, category, dateFilter, typeFilter ->
-            FilterParams(query, category, dateFilter, typeFilter)
+            _selectedFilterTab,
+            _reportsPeriodPreset
+        ) { query, category, dateFilter, typeFilter, reportsPreset ->
+            FilterParams(query, category, dateFilter, typeFilter, reportsPreset)
         }
 
         val dataFlow = combine(
@@ -97,12 +100,20 @@ class FinanceViewModel(
                     searchQuery = filter.query,
                     selectedCategoryFilter = filter.category,
                     selectedDateFilter = filter.dateFilter,
-                    selectedFilterTab = filter.typeFilter
+                    selectedFilterTab = filter.typeFilter,
+                    reportsPreset = filter.reportsPreset
                 ).copy(isLoading = false)
             }.collect { newState ->
                 _uiState.value = newState
             }
         }
+    }
+
+    /**
+     * Memperbarui filter preset waktu analitik laporan ("THIS_MONTH", "LAST_MONTH", "LAST_3_MONTHS", "ALL_TIME").
+     */
+    fun setReportsPeriodPreset(preset: String) {
+        _reportsPeriodPreset.value = preset
     }
 
     /**
