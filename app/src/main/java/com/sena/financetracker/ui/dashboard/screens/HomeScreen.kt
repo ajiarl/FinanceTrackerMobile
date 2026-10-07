@@ -15,7 +15,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -53,6 +57,7 @@ fun HomeScreen(
     onAddAccountClick: () -> Unit,
     onAccountClick: (AccountEntity) -> Unit,
     onNavigateToTransactions: () -> Unit,
+    onNavigateToNotifications: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val currentMonthText = remember {
@@ -70,27 +75,82 @@ fun HomeScreen(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Welcome Header
+        // Welcome Header with Notification Bell
         item {
-            Column {
-                Text(
-                    text = "RINGKASAN KEUANGAN",
-                    style = TextStyle(
-                        fontWeight = FontWeight.Black,
-                        fontSize = 11.sp,
-                        letterSpacing = 2.sp,
-                        color = Color.Black.copy(alpha = 0.5f)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "RINGKASAN KEUANGAN",
+                        style = TextStyle(
+                            fontWeight = FontWeight.Black,
+                            fontSize = 11.sp,
+                            letterSpacing = 2.sp,
+                            color = Color.Black.copy(alpha = 0.5f)
+                        )
                     )
-                )
-                Text(
-                    text = "HALO, AJI",
-                    style = TextStyle(
-                        fontWeight = FontWeight.Black,
-                        fontSize = 24.sp,
-                        letterSpacing = (-0.5).sp,
-                        color = Color.Black
+                    Text(
+                        text = "HALO, AJI",
+                        style = TextStyle(
+                            fontWeight = FontWeight.Black,
+                            fontSize = 24.sp,
+                            letterSpacing = (-0.5).sp,
+                            color = Color.Black
+                        )
                     )
-                )
+                }
+
+                // Tombol Lonceng Neobrutal
+                Box(
+                    modifier = Modifier
+                        .clickable(onClick = onNavigateToNotifications)
+                ) {
+                    // Drop shadow kotak 3.dp
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .offset(x = 3.dp, y = 3.dp)
+                            .background(Color.Black, RectangleShape)
+                    )
+                    // Button body neobrutal
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(Color.White, RectangleShape)
+                            .border(2.dp, Color.Black, RectangleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = "Pusat Notifikasi",
+                            tint = Color.Black,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    // Badge Merah Unread Count
+                    if (uiState.unreadNotificationCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .offset(x = 28.dp, y = (-4).dp)
+                                .background(Color(0xFFDC2626), RectangleShape)
+                                .border(1.5.dp, Color.Black, RectangleShape)
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = if (uiState.unreadNotificationCount > 99) "99+" else uiState.unreadNotificationCount.toString(),
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 10.sp,
+                                    color = Color.White
+                                )
+                            )
+                        }
+                    }
+                }
             }
         }
 

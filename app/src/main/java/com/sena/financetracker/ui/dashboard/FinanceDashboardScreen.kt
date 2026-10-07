@@ -45,6 +45,7 @@ import com.sena.financetracker.ui.dashboard.screens.AccountsScreen
 import com.sena.financetracker.ui.dashboard.screens.CategoriesScreen
 import com.sena.financetracker.ui.dashboard.screens.BudgetsScreen
 import com.sena.financetracker.ui.dashboard.screens.HomeScreen
+import com.sena.financetracker.ui.dashboard.screens.NotificationsScreen
 import com.sena.financetracker.ui.dashboard.screens.ReportsScreen
 import com.sena.financetracker.ui.dashboard.screens.TransactionsScreen
 import com.sena.financetracker.ui.navigation.NeobrutalBottomNav
@@ -107,6 +108,10 @@ fun FinanceDashboardScreen(
         onDeleteCategory = { id ->
             viewModel.deleteCategory(id)
         },
+        onMarkNotificationAsRead = { viewModel.markNotificationAsRead(it) },
+        onMarkAllNotificationsAsRead = { viewModel.markAllNotificationsAsRead() },
+        onClearAllNotifications = { viewModel.clearAllNotifications() },
+        onDeleteNotification = { viewModel.deleteNotification(it) },
         modifier = modifier
     )
 }
@@ -141,6 +146,10 @@ fun FinanceDashboardContent(
     onAddCategory: (name: String, type: String, color: String) -> Unit = { _, _, _ -> },
     onUpdateCategory: (id: Long, name: String, type: String, color: String) -> Unit = { _, _, _, _ -> },
     onDeleteCategory: (Long) -> Unit = {},
+    onMarkNotificationAsRead: (Long) -> Unit = {},
+    onMarkAllNotificationsAsRead: () -> Unit = {},
+    onClearAllNotifications: () -> Unit = {},
+    onDeleteNotification: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -201,6 +210,9 @@ fun FinanceDashboardContent(
                             launchSingleTop = true
                             restoreState = true
                         }
+                    },
+                    onNavigateToNotifications = {
+                        navController.navigate(Screen.Notifications.route)
                     }
                 )
             }
@@ -260,6 +272,18 @@ fun FinanceDashboardContent(
                     onAddCategory = onAddCategory,
                     onUpdateCategory = onUpdateCategory,
                     onDeleteCategory = onDeleteCategory
+                )
+            }
+
+            // Sub-screen: Pusat Pesan & Notifikasi
+            composable(Screen.Notifications.route) {
+                NotificationsScreen(
+                    uiState = uiState,
+                    onNavigateBack = { navController.popBackStack() },
+                    onMarkAsRead = onMarkNotificationAsRead,
+                    onMarkAllAsRead = onMarkAllNotificationsAsRead,
+                    onClearAllNotifications = onClearAllNotifications,
+                    onDeleteNotification = onDeleteNotification
                 )
             }
         }

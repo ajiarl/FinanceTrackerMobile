@@ -3,6 +3,7 @@ package com.sena.financetracker.viewmodel
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.CategoryEntity
+import com.sena.financetracker.data.NotificationEntity
 import com.sena.financetracker.data.TransactionEntity
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -85,6 +86,8 @@ data class FinanceUiState(
     val accounts: List<AccountEntity> = emptyList(),
     val categories: List<CategoryEntity> = emptyList(),
     val budgets: List<BudgetProgressItem> = emptyList(),
+    val notifications: List<NotificationEntity> = emptyList(),
+    val unreadNotificationCount: Int = 0,
     val totalBalance: Double = 0.0,
     val totalIncome: Double = 0.0,
     val totalExpense: Double = 0.0,
@@ -337,6 +340,8 @@ fun calculateFinanceTotals(
     accounts: List<AccountEntity> = emptyList(),
     categories: List<CategoryEntity> = emptyList(),
     budgets: List<BudgetProgressItem> = emptyList(),
+    notifications: List<NotificationEntity> = emptyList(),
+    unreadNotificationCount: Int = 0,
     searchQuery: String = "",
     selectedCategoryFilter: String? = null,
     selectedDateFilter: String = "ALL",
@@ -381,6 +386,8 @@ fun calculateFinanceTotals(
         accounts = accounts,
         categories = categories,
         budgets = budgets,
+        notifications = notifications,
+        unreadNotificationCount = unreadNotificationCount,
         totalBalance = totalBalance,
         totalIncome = totalIncome,
         totalExpense = totalExpense,
