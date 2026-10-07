@@ -63,7 +63,8 @@ fun NeobrutalBottomNav(
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Screen.bottomNavItems.forEach { screen ->
+            val items = Screen.bottomNavItems
+            items.forEach { screen ->
                 val isSelected = currentRoute == screen.route
                 BottomNavItem(
                     screen = screen,

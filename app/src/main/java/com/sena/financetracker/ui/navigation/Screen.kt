@@ -19,25 +19,25 @@ sealed class Screen(
     val title: String,
     val icon: ImageVector
 ) {
-    object Dashboard : Screen(
+    data object Dashboard : Screen(
         route = "dashboard",
         title = "Beranda",
         icon = Icons.Default.Home
     )
 
-    object Transactions : Screen(
+    data object Transactions : Screen(
         route = "transactions",
         title = "Transaksi",
         icon = Icons.AutoMirrored.Filled.ReceiptLong
     )
 
-    object Budgets : Screen(
+    data object Budgets : Screen(
         route = "budgets",
         title = "Anggaran",
         icon = Icons.Default.PieChart
     )
 
-    object Accounts : Screen(
+    data object Accounts : Screen(
         route = "accounts",
         title = "Akun",
         icon = Icons.Default.AccountBalanceWallet
@@ -47,11 +47,13 @@ sealed class Screen(
         /**
          * Seluruh daftar layar tab bottom navigation utama.
          */
-        val bottomNavItems = listOf(
-            Dashboard,
-            Transactions,
-            Budgets,
-            Accounts
-        )
+        val bottomNavItems: List<Screen> by lazy {
+            listOf(
+                Dashboard,
+                Transactions,
+                Budgets,
+                Accounts
+            )
+        }
     }
 }
