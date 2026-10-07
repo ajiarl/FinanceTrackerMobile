@@ -65,6 +65,14 @@ class SettingsNavigationAndResetTest {
             list.clear()
             flow.value = emptyList()
         }
+
+        override suspend fun insertTransactionsBatch(transactions: List<TransactionEntity>): List<Long> {
+            val ids = mutableListOf<Long>()
+            for (tx in transactions) {
+                ids.add(insertTransaction(tx))
+            }
+            return ids
+        }
     }
 
     private class StubAccountDao : AccountDao {
@@ -156,5 +164,41 @@ class SettingsNavigationAndResetTest {
 
         val afterReset = repository.getAllTransactions().first()
         assertTrue(afterReset.isEmpty())
+    }
+
+    @Test
+    fun testScreenImportRegistration() {
+        assertEquals("import", Screen.Import.route)
+        assertEquals("Impor CSV", Screen.Import.title)
+    }
+
+    @Test
+    fun testInsertTransactionsBatchRepository() = runBlocking {
+        val list = listOf(
+            TransactionEntity(
+                title = "Gaji Awal",
+                amount = 10000000.0,
+                type = "INCOME",
+                category = "Gaji",
+                date = "2026-03-01",
+                accountId = 1L,
+                accountName = "Dompet Tunai"
+            ),
+            TransactionEntity(
+                title = "Belanja Bulanan",
+                amount = 500000.0,
+                type = "EXPENSE",
+                category = "Belanja",
+                date = "2026-03-02",
+                accountId = 1L,
+                accountName = "Dompet Tunai"
+            )
+        )
+
+        val ids = repository.insertTransactionsBatch(list)
+        assertEquals(2, ids.size)
+
+        val all = repository.getAllTransactions().first()
+        assertEquals(2, all.size)
     }
 }

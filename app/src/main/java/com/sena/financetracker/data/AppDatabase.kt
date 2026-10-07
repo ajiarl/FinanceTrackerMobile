@@ -503,6 +503,34 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
                 } else null
             }
         }
+
+        override suspend fun insertTransactionsBatch(transactions: List<TransactionEntity>): List<Long> =
+            withContext(Dispatchers.IO) {
+                val db = writableDatabase
+                val ids = mutableListOf<Long>()
+                db.beginTransaction()
+                try {
+                    for (tx in transactions) {
+                        val values = ContentValues().apply {
+                            put(COL_TX_TITLE, tx.title)
+                            put(COL_TX_AMOUNT, tx.amount)
+                            put(COL_TX_TYPE, tx.type)
+                            put(COL_TX_CATEGORY, tx.category)
+                            put(COL_TX_DATE, tx.date)
+                            put(COL_TX_ACCOUNT_ID, tx.accountId)
+                            put(COL_TX_ACCOUNT_NAME, tx.accountName)
+                            put(COL_TX_NOTES, tx.notes)
+                        }
+                        val id = db.insert(TABLE_TRANSACTIONS, null, values)
+                        ids.add(id)
+                    }
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                }
+                refreshTransactionsFlowInternal()
+                ids
+            }
     }
 
     // ── AccountDao Implementation ─────────────────────────────────────────────

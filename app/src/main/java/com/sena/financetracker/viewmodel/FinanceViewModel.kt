@@ -279,6 +279,26 @@ class FinanceViewModel(
     }
 
     /**
+     * Mengimpor daftar transaksi hasil parsing CSV ke dalam basis data Room/SQLite secara batch.
+     */
+    fun importTransactionsBatch(
+        transactions: List<TransactionEntity>,
+        onSuccess: (count: Int) -> Unit = {},
+        onError: (message: String) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            try {
+                val insertedIds = repository.insertTransactionsBatch(transactions)
+                onSuccess(insertedIds.size)
+            } catch (e: Exception) {
+                val errorMsg = e.message ?: "Gagal mengimpor batch transaksi CSV"
+                _uiState.value = _uiState.value.copy(errorMessage = errorMsg)
+                onError(errorMsg)
+            }
+        }
+    }
+
+    /**
      * Menambahkan anggaran baru per kategori dan periode bulan.
      */
     fun addBudget(

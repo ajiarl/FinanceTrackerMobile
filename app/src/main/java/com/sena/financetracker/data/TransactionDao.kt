@@ -9,4 +9,7 @@ interface TransactionDao {
     suspend fun updateTransaction(transaction: TransactionEntity)
     suspend fun getTransactionById(id: Long): TransactionEntity?
     suspend fun clearAllTransactions() {}
+    suspend fun insertTransactionsBatch(transactions: List<TransactionEntity>): List<Long> {
+        return transactions.map { insertTransaction(it) }
+    }
 }

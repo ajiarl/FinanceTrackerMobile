@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Storage
@@ -65,6 +66,7 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToCategories: () -> Unit,
     onNavigateToNotifications: () -> Unit,
+    onNavigateToImport: () -> Unit,
     onResetTransactions: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -170,6 +172,18 @@ fun SettingsScreen(
                 badgeTextColor = Color.White,
                 badgeCount = uiState.unreadNotificationCount,
                 onClick = onNavigateToNotifications
+            )
+        }
+
+        // Menu 3: IMPOR TRANSAKSI (CSV) (Emerald Green #00E676)
+        item {
+            SettingsNavigationCard(
+                title = "IMPOR TRANSAKSI (CSV)",
+                subtitle = "Unggah & konversi berkas CSV riwayat transaksi ke database",
+                icon = Icons.Default.FileUpload,
+                badgeColor = Color(0xFF00E676),
+                iconTintColor = Color.Black,
+                onClick = onNavigateToImport
             )
         }
 

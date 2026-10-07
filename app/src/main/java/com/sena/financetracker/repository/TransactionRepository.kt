@@ -515,6 +515,39 @@ class TransactionRepository(
     }
 
     /**
+     * Memasukkan daftar transaksi sekaligus secara batch dan menyesuaikan saldo rekening terkait.
+     */
+    suspend fun insertTransactionsBatch(transactions: List<TransactionEntity>): List<Long> {
+        if (transactions.isEmpty()) return emptyList()
+
+        val ids = transactionDao.insertTransactionsBatch(transactions)
+
+        // Kelompokkan delta saldo per accountId agar pembaruan saldo akun lebih optimal
+        val deltasByAccount = mutableMapOf<Long, Double>()
+        for (tx in transactions) {
+            val delta = if (tx.type.equals("INCOME", ignoreCase = true)) {
+                tx.amount
+            } else {
+                -tx.amount
+            }
+            val current = deltasByAccount.getOrDefault(tx.accountId, 0.0)
+            deltasByAccount[tx.accountId] = current + delta
+        }
+
+        deltasByAccount.forEach { (accountId, totalDelta) ->
+            accountDao.adjustBalance(accountId, totalDelta)
+        }
+
+        // Pemicu pengecekan overbudget alert untuk setiap expense
+        transactions.filter { it.type.equals("EXPENSE", ignoreCase = true) }
+            .forEach { tx ->
+                checkAndTriggerBudgetAlert(tx)
+            }
+
+        return ids
+    }
+
+    /**
      * Melakukan transfer dana antar rekening secara aman dan atomik.
      *
      * Logika Operasional:

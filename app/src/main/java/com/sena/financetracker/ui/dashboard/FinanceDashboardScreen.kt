@@ -45,6 +45,7 @@ import com.sena.financetracker.ui.dashboard.screens.AccountsScreen
 import com.sena.financetracker.ui.dashboard.screens.CategoriesScreen
 import com.sena.financetracker.ui.dashboard.screens.BudgetsScreen
 import com.sena.financetracker.ui.dashboard.screens.HomeScreen
+import com.sena.financetracker.ui.dashboard.screens.ImportCsvScreen
 import com.sena.financetracker.ui.dashboard.screens.NotificationsScreen
 import com.sena.financetracker.ui.dashboard.screens.SettingsScreen
 import com.sena.financetracker.ui.dashboard.screens.ReportsScreen
@@ -114,6 +115,12 @@ fun FinanceDashboardScreen(
         onClearAllNotifications = { viewModel.clearAllNotifications() },
         onDeleteNotification = { viewModel.deleteNotification(it) },
         onResetTransactions = { viewModel.resetTransactions() },
+        onImportTransactionsBatch = { transactions, onDone ->
+            viewModel.importTransactionsBatch(
+                transactions = transactions,
+                onSuccess = { onDone() }
+            )
+        },
         modifier = modifier
     )
 }
@@ -153,6 +160,7 @@ fun FinanceDashboardContent(
     onClearAllNotifications: () -> Unit = {},
     onDeleteNotification: (Long) -> Unit = {},
     onResetTransactions: () -> Unit = {},
+    onImportTransactionsBatch: (List<TransactionEntity>, () -> Unit) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -304,7 +312,19 @@ fun FinanceDashboardContent(
                     onNavigateToNotifications = {
                         navController.navigate(Screen.Notifications.route)
                     },
+                    onNavigateToImport = {
+                        navController.navigate(Screen.Import.route)
+                    },
                     onResetTransactions = onResetTransactions
+                )
+            }
+
+            // Sub-screen: Impor Berkas CSV
+            composable(Screen.Import.route) {
+                ImportCsvScreen(
+                    accounts = uiState.accounts,
+                    onNavigateBack = { navController.popBackStack() },
+                    onImportBatch = onImportTransactionsBatch
                 )
             }
         }

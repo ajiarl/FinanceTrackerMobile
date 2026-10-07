@@ -3,6 +3,7 @@ package com.sena.financetracker.ui.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.InsertChartOutlined
 import androidx.compose.material.icons.filled.Notifications
@@ -68,6 +69,12 @@ sealed class Screen(
         route = "settings",
         title = "Pengaturan",
         icon = Icons.Default.Settings
+    )
+
+    data object Import : Screen(
+        route = "import",
+        title = "Impor CSV",
+        icon = Icons.Default.FileUpload
     )
 
     companion object {
