@@ -21,6 +21,14 @@ class FinanceDatabaseHelper(context: Context) : TransactionDao {
         appDatabase.transactionDao.deleteTransaction(id)
     }
 
+    override suspend fun updateTransaction(transaction: TransactionEntity) {
+        appDatabase.transactionDao.updateTransaction(transaction)
+    }
+
+    override suspend fun getTransactionById(id: Long): TransactionEntity? {
+        return appDatabase.transactionDao.getTransactionById(id)
+    }
+
     val database: AppDatabase
         get() = appDatabase
 }

@@ -68,4 +68,33 @@ class TransactionRepository(
     suspend fun deleteTransaction(id: Long) {
         transactionDao.deleteTransaction(id)
     }
+
+    suspend fun updateTransaction(oldTransaction: TransactionEntity, newTransaction: TransactionEntity) {
+        transactionDao.updateTransaction(newTransaction)
+
+        // 1. Revert old transaction effect on old account balance
+        val oldDelta = if (oldTransaction.type.equals("INCOME", ignoreCase = true)) {
+            -oldTransaction.amount
+        } else {
+            oldTransaction.amount
+        }
+        accountDao.adjustBalance(oldTransaction.accountId, oldDelta)
+
+        // 2. Apply new transaction effect on new account balance
+        val newDelta = if (newTransaction.type.equals("INCOME", ignoreCase = true)) {
+            newTransaction.amount
+        } else {
+            -newTransaction.amount
+        }
+        accountDao.adjustBalance(newTransaction.accountId, newDelta)
+    }
+
+    suspend fun updateTransaction(newTransaction: TransactionEntity) {
+        val oldTx = transactionDao.getTransactionById(newTransaction.id)
+        if (oldTx != null) {
+            updateTransaction(oldTx, newTransaction)
+        } else {
+            transactionDao.updateTransaction(newTransaction)
+        }
+    }
 }

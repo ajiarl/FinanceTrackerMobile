@@ -67,6 +67,12 @@ class FinanceViewModel(
         }
     }
 
+    fun updateTransaction(oldTransaction: TransactionEntity, newTransaction: TransactionEntity) {
+        viewModelScope.launch {
+            repository.updateTransaction(oldTransaction, newTransaction)
+        }
+    }
+
     fun deleteTransaction(id: Long) {
         viewModelScope.launch {
             val tx = _uiState.value.transactions.find { it.id == id }

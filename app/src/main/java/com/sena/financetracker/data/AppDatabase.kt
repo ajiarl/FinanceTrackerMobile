@@ -302,6 +302,61 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             refreshTransactionsFlowInternal()
             Unit
         }
+
+        override suspend fun updateTransaction(transaction: TransactionEntity) = withContext(Dispatchers.IO) {
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put(COL_TX_TITLE, transaction.title)
+                put(COL_TX_AMOUNT, transaction.amount)
+                put(COL_TX_TYPE, transaction.type)
+                put(COL_TX_CATEGORY, transaction.category)
+                put(COL_TX_DATE, transaction.date)
+                put(COL_TX_ACCOUNT_ID, transaction.accountId)
+                put(COL_TX_ACCOUNT_NAME, transaction.accountName)
+                put(COL_TX_NOTES, transaction.notes)
+            }
+            db.update(TABLE_TRANSACTIONS, values, "$COL_TX_ID = ?", arrayOf(transaction.id.toString()))
+            refreshTransactionsFlowInternal()
+            Unit
+        }
+
+        override suspend fun getTransactionById(id: Long): TransactionEntity? = withContext(Dispatchers.IO) {
+            val db = readableDatabase
+            val cursor = db.query(
+                TABLE_TRANSACTIONS,
+                null,
+                "$COL_TX_ID = ?",
+                arrayOf(id.toString()),
+                null,
+                null,
+                null
+            )
+            cursor.use { c ->
+                if (c.moveToFirst()) {
+                    val idIdx = c.getColumnIndexOrThrow(COL_TX_ID)
+                    val titleIdx = c.getColumnIndexOrThrow(COL_TX_TITLE)
+                    val amountIdx = c.getColumnIndexOrThrow(COL_TX_AMOUNT)
+                    val typeIdx = c.getColumnIndexOrThrow(COL_TX_TYPE)
+                    val catIdx = c.getColumnIndexOrThrow(COL_TX_CATEGORY)
+                    val dateIdx = c.getColumnIndexOrThrow(COL_TX_DATE)
+                    val accIdIdx = c.getColumnIndex(COL_TX_ACCOUNT_ID)
+                    val accNameIdx = c.getColumnIndex(COL_TX_ACCOUNT_NAME)
+                    val notesIdx = c.getColumnIndex(COL_TX_NOTES)
+
+                    TransactionEntity(
+                        id = c.getLong(idIdx),
+                        title = c.getString(titleIdx),
+                        amount = c.getDouble(amountIdx),
+                        type = c.getString(typeIdx),
+                        category = c.getString(catIdx),
+                        date = c.getString(dateIdx),
+                        accountId = if (accIdIdx != -1) c.getLong(accIdIdx) else 1L,
+                        accountName = if (accNameIdx != -1) c.getString(accNameIdx) else "Dompet Tunai",
+                        notes = if (notesIdx != -1) c.getString(notesIdx) ?: "" else ""
+                    )
+                } else null
+            }
+        }
     }
 
     // ── AccountDao Implementation ─────────────────────────────────────────────

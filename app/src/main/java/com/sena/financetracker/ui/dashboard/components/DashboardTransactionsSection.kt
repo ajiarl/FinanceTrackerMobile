@@ -45,6 +45,7 @@ fun DashboardTransactionsSection(
     selectedFilterTab: String,
     onFilterTabSelected: (String) -> Unit,
     onDeleteTransaction: (TransactionEntity) -> Unit,
+    onEditTransaction: (TransactionEntity) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -169,6 +170,7 @@ fun DashboardTransactionsSection(
                 transactions.forEach { tx ->
                     TransactionNeobrutalItem(
                         transaction = tx,
+                        onEdit = { onEditTransaction(tx) },
                         onDelete = { onDeleteTransaction(tx) }
                     )
                 }
@@ -181,6 +183,7 @@ fun DashboardTransactionsSection(
 fun TransactionNeobrutalItem(
     transaction: TransactionEntity,
     onDelete: () -> Unit,
+    onEdit: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isIncome = transaction.type.equals("INCOME", ignoreCase = true)
@@ -188,7 +191,9 @@ fun TransactionNeobrutalItem(
     val amountPrefix = if (isIncome) "+" else "-"
 
     NeobrutalCard(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit),
         backgroundColor = Color.White,
         borderWidth = 2.dp,
         shadowOffset = 4.dp

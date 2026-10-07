@@ -39,6 +39,7 @@ import com.sena.financetracker.ui.components.RetroYellow
 import com.sena.financetracker.ui.dashboard.components.DashboardAccountsSection
 import com.sena.financetracker.ui.dashboard.components.DashboardBalanceSection
 import com.sena.financetracker.ui.dashboard.components.DashboardTransactionsSection
+import com.sena.financetracker.ui.dashboard.components.NeobrutalEditTransactionDialog
 import com.sena.financetracker.viewmodel.FinanceUiState
 import com.sena.financetracker.viewmodel.FinanceViewModel
 import java.text.SimpleDateFormat
@@ -58,6 +59,7 @@ fun FinanceDashboardScreen(
             viewModel.addTransaction(title, amount, type, category, date, accId, accName, notes)
         },
         onDeleteTransaction = { viewModel.deleteTransaction(it) },
+        onUpdateTransaction = { oldTx, newTx -> viewModel.updateTransaction(oldTx, newTx) },
         modifier = modifier
     )
 }
@@ -76,9 +78,11 @@ fun FinanceDashboardContent(
         notes: String
     ) -> Unit,
     onDeleteTransaction: (TransactionEntity) -> Unit,
+    onUpdateTransaction: (oldTransaction: TransactionEntity, newTransaction: TransactionEntity) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var selectedFilterTab by remember { mutableStateOf("ALL") }
 
     val currentMonthText = remember {
@@ -149,7 +153,8 @@ fun FinanceDashboardContent(
                     transactions = filteredTransactions,
                     selectedFilterTab = selectedFilterTab,
                     onFilterTabSelected = { selectedFilterTab = it },
-                    onDeleteTransaction = onDeleteTransaction
+                    onDeleteTransaction = onDeleteTransaction,
+                    onEditTransaction = { editingTransaction = it }
                 )
             }
         }
@@ -161,6 +166,19 @@ fun FinanceDashboardContent(
             categories = uiState.categories,
             onDismiss = { showAddDialog = false },
             onSave = onAddTransaction
+        )
+    }
+
+    editingTransaction?.let { txToEdit ->
+        NeobrutalEditTransactionDialog(
+            transaction = txToEdit,
+            accounts = uiState.accounts,
+            categories = uiState.categories,
+            onDismiss = { editingTransaction = null },
+            onSave = { updatedTx ->
+                onUpdateTransaction(txToEdit, updatedTx)
+                editingTransaction = null
+            }
         )
     }
 }
