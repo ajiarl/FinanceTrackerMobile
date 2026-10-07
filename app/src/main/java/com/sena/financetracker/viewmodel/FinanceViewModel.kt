@@ -71,6 +71,9 @@ class FinanceViewModel(
     private val _isAiInsightLoading = MutableStateFlow(false)
     private val _aiInsightError = MutableStateFlow<String?>(null)
 
+    private val _pageSize = MutableStateFlow(50)
+    private val _visibleTransactionCount = MutableStateFlow(50)
+
     init {
         observeData()
     }
@@ -83,7 +86,9 @@ class FinanceViewModel(
         val reportsPreset: String,
         val aiInsightText: String?,
         val isAiInsightLoading: Boolean,
-        val aiInsightError: String?
+        val aiInsightError: String?,
+        val pageSize: Int,
+        val visibleTransactionCount: Int
     )
 
     private data class CoreData(
@@ -117,11 +122,13 @@ class FinanceViewModel(
      * 3. Mengkalkulasi total keuangan riil, menyaring [FinanceUiState.filteredTransactions], serta kalkulasi [ReportsAnalyticsState].
      */
     private fun observeData() {
+        val pagingFlow = combine(_pageSize, _visibleTransactionCount) { size, count -> Pair(size, count) }
         val filterParamsFlow = combine(
             combine(_searchQuery, _selectedCategoryFilter, _selectedDateFilter) { q, c, d -> Triple(q, c, d) },
             combine(_selectedFilterTab, _reportsPeriodPreset) { t, r -> Pair(t, r) },
-            combine(_aiInsightText, _isAiInsightLoading, _aiInsightError) { text, loading, err -> Triple(text, loading, err) }
-        ) { (query, category, dateFilter), (typeFilter, reportsPreset), (aiText, aiLoading, aiErr) ->
+            combine(_aiInsightText, _isAiInsightLoading, _aiInsightError) { text, loading, err -> Triple(text, loading, err) },
+            pagingFlow
+        ) { (query, category, dateFilter), (typeFilter, reportsPreset), (aiText, aiLoading, aiErr), (pageSize, visibleCount) ->
             FilterParams(
                 query = query,
                 category = category,
@@ -130,7 +137,9 @@ class FinanceViewModel(
                 reportsPreset = reportsPreset,
                 aiInsightText = aiText,
                 isAiInsightLoading = aiLoading,
-                aiInsightError = aiErr
+                aiInsightError = aiErr,
+                pageSize = pageSize,
+                visibleTransactionCount = visibleCount
             )
         }
 
@@ -179,11 +188,31 @@ class FinanceViewModel(
                     aiInsightText = filter.aiInsightText,
                     isAiInsightLoading = filter.isAiInsightLoading,
                     aiInsightError = filter.aiInsightError,
-                    isHapticEnabled = data.isHapticEnabled
+                    isHapticEnabled = data.isHapticEnabled,
+                    pageSize = filter.pageSize,
+                    visibleTransactionCount = filter.visibleTransactionCount
                 ).copy(isLoading = false)
             }.collect { newState ->
                 _uiState.value = newState
             }
+        }
+    }
+
+    /**
+     * Memuat lebih banyak transaksi ke tampilan UI (progressive pagination).
+     */
+    fun loadMoreTransactions() {
+        val currentVisible = _visibleTransactionCount.value
+        val pageSize = _pageSize.value
+        _visibleTransactionCount.value = currentVisible + pageSize
+    }
+
+    /**
+     * Mengatur ukuran halaman transaksi (pageSize).
+     */
+    fun setPageSize(size: Int) {
+        if (size > 0) {
+            _pageSize.value = size
         }
     }
 
@@ -290,6 +319,7 @@ class FinanceViewModel(
         _selectedCategoryFilter.value = null
         _selectedDateFilter.value = "ALL"
         _selectedFilterTab.value = "ALL"
+        _visibleTransactionCount.value = _pageSize.value
     }
 
     /**

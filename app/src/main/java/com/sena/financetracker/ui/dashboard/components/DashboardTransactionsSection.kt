@@ -71,6 +71,8 @@ fun DashboardTransactionsSection(
     onResetFilters: () -> Unit = {},
     onDeleteTransaction: (TransactionEntity) -> Unit,
     onEditTransaction: (TransactionEntity) -> Unit = {},
+    hasMoreTransactions: Boolean = false,
+    onLoadMore: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isAnyFilterActive = searchQuery.isNotBlank() ||
@@ -375,6 +377,44 @@ fun DashboardTransactionsSection(
                                 onEdit = { onEditTransaction(tx) },
                                 onDelete = { onDeleteTransaction(tx) }
                             )
+                        }
+                    }
+                }
+
+                // Neobrutal "LOAD MORE" Pagination Button
+                if (hasMoreTransactions) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(modifier = Modifier.padding(end = 3.dp, bottom = 3.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .offset(x = 3.dp, y = 3.dp)
+                                    .background(Color.Black, RectangleShape)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .background(RetroYellow, RectangleShape)
+                                    .border(2.dp, Color.Black, RectangleShape)
+                                    .clickable { onLoadMore() }
+                                    .padding(horizontal = 24.dp, vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "MUAT LEBIH BANYAK (LOAD MORE)",
+                                    style = TextStyle(
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 11.sp,
+                                        letterSpacing = 1.sp,
+                                        color = Color.Black
+                                    )
+                                )
+                            }
                         }
                     }
                 }

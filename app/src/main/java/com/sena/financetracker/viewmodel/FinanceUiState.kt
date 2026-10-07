@@ -101,7 +101,10 @@ data class FinanceUiState(
     val aiInsightText: String? = null,
     val isAiInsightLoading: Boolean = false,
     val aiInsightError: String? = null,
-    val isHapticEnabled: Boolean = true
+    val isHapticEnabled: Boolean = true,
+    val pageSize: Int = 50,
+    val visibleTransactionCount: Int = 50,
+    val hasMoreTransactions: Boolean = false
 )
 
 /**
@@ -355,6 +358,8 @@ fun calculateFinanceTotals(
     isAiInsightLoading: Boolean = false,
     aiInsightError: String? = null,
     isHapticEnabled: Boolean = true,
+    pageSize: Int = 50,
+    visibleTransactionCount: Int = 50,
     currentDate: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
     referenceDate: Date = Date()
 ): FinanceUiState {
@@ -388,9 +393,12 @@ fun calculateFinanceTotals(
         referenceDate = referenceDate
     )
 
+    val pagedFiltered = filtered.take(visibleTransactionCount)
+    val hasMore = filtered.size > visibleTransactionCount
+
     return FinanceUiState(
         transactions = transactions,
-        filteredTransactions = filtered,
+        filteredTransactions = pagedFiltered,
         accounts = accounts,
         categories = categories,
         budgets = budgets,
@@ -407,6 +415,9 @@ fun calculateFinanceTotals(
         aiInsightText = aiInsightText,
         isAiInsightLoading = isAiInsightLoading,
         aiInsightError = aiInsightError,
-        isHapticEnabled = isHapticEnabled
+        isHapticEnabled = isHapticEnabled,
+        pageSize = pageSize,
+        visibleTransactionCount = visibleTransactionCount,
+        hasMoreTransactions = hasMore
     )
 }

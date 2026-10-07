@@ -155,6 +155,14 @@ class TransactionRepository(
     fun getAllTransactions(): Flow<List<TransactionEntity>> = transactionDao.getAllTransactions()
 
     /**
+     * Mengambil slice/halaman transaksi berdasarkan limit dan offset.
+     * Menggunakan index idx_transactions_date (ORDER BY date DESC) pada SQLite layer.
+     */
+    suspend fun getTransactionsPaged(limit: Int, offset: Int): List<TransactionEntity> {
+        return transactionDao.getTransactionsPaged(limit, offset)
+    }
+
+    /**
      * Mengambil seluruh data rekening/akun bank & e-wallet secara reaktif.
      */
     fun getAllAccounts(): Flow<List<AccountEntity>> = accountDao.getAllAccounts()

@@ -123,6 +123,7 @@ fun FinanceDashboardScreen(
             )
         },
         onRefreshAiInsight = { viewModel.fetchAiInsight() },
+        onLoadMoreTransactions = { viewModel.loadMoreTransactions() },
         modifier = modifier
     )
 }
@@ -165,6 +166,7 @@ fun FinanceDashboardContent(
     onToggleHaptic: (Boolean) -> Unit = {},
     onImportTransactionsBatch: (List<TransactionEntity>, () -> Unit) -> Unit = { _, _ -> },
     onRefreshAiInsight: () -> Unit = {},
+    onLoadMoreTransactions: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -256,7 +258,8 @@ fun FinanceDashboardContent(
                     onCategoryFilterSelected = onCategoryFilterSelected,
                     onResetFilters = onResetFilters,
                     onDeleteTransaction = { tx -> transactionToDelete = tx },
-                    onEditTransaction = { tx -> editingTransaction = tx }
+                    onEditTransaction = { tx -> editingTransaction = tx },
+                    onLoadMore = onLoadMoreTransactions
                 )
             }
 

@@ -55,6 +55,7 @@ fun TransactionsScreen(
     onResetFilters: () -> Unit,
     onDeleteTransaction: (TransactionEntity) -> Unit,
     onEditTransaction: (TransactionEntity) -> Unit,
+    onLoadMore: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -154,7 +155,9 @@ fun TransactionsScreen(
                 onCategoryFilterSelected = onCategoryFilterSelected,
                 onResetFilters = onResetFilters,
                 onDeleteTransaction = onDeleteTransaction,
-                onEditTransaction = onEditTransaction
+                onEditTransaction = onEditTransaction,
+                hasMoreTransactions = uiState.hasMoreTransactions,
+                onLoadMore = onLoadMore
             )
         }
     }

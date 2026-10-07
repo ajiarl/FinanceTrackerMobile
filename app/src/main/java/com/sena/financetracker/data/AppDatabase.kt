@@ -452,6 +452,50 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             return _transactionsFlow.asStateFlow()
         }
 
+        override suspend fun getTransactionsPaged(limit: Int, offset: Int): List<TransactionEntity> =
+            withContext(Dispatchers.IO) {
+                val list = mutableListOf<TransactionEntity>()
+                val db = readableDatabase
+                val cursor = db.query(
+                    TABLE_TRANSACTIONS,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "$COL_TX_DATE DESC, $COL_TX_ID DESC",
+                    "$offset, $limit"
+                )
+                cursor.use { c ->
+                    val idIdx = c.getColumnIndexOrThrow(COL_TX_ID)
+                    val titleIdx = c.getColumnIndexOrThrow(COL_TX_TITLE)
+                    val amountIdx = c.getColumnIndexOrThrow(COL_TX_AMOUNT)
+                    val typeIdx = c.getColumnIndexOrThrow(COL_TX_TYPE)
+                    val catIdx = c.getColumnIndexOrThrow(COL_TX_CATEGORY)
+                    val dateIdx = c.getColumnIndexOrThrow(COL_TX_DATE)
+                    val accIdIdx = c.getColumnIndex(COL_TX_ACCOUNT_ID)
+                    val accNameIdx = c.getColumnIndex(COL_TX_ACCOUNT_NAME)
+                    val notesIdx = c.getColumnIndex(COL_TX_NOTES)
+
+                    while (c.moveToNext()) {
+                        list.add(
+                            TransactionEntity(
+                                id = c.getLong(idIdx),
+                                title = c.getString(titleIdx),
+                                amount = c.getDouble(amountIdx),
+                                type = c.getString(typeIdx),
+                                category = c.getString(catIdx),
+                                date = c.getString(dateIdx),
+                                accountId = if (accIdIdx != -1) c.getLong(accIdIdx) else 1L,
+                                accountName = if (accNameIdx != -1) c.getString(accNameIdx) else "Dompet Tunai",
+                                notes = if (notesIdx != -1) c.getString(notesIdx) ?: "" else ""
+                            )
+                        )
+                    }
+                }
+                list
+            }
+
         override suspend fun insertTransaction(transaction: TransactionEntity): Long =
             withContext(Dispatchers.IO) {
                 val db = writableDatabase
