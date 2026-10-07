@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,6 +69,7 @@ fun SettingsScreen(
     onNavigateToNotifications: () -> Unit,
     onNavigateToImport: () -> Unit,
     onResetTransactions: () -> Unit,
+    onToggleHaptic: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showResetConfirmDialog by remember { mutableStateOf(false) }
@@ -185,6 +187,83 @@ fun SettingsScreen(
                 iconTintColor = Color.Black,
                 onClick = onNavigateToImport
             )
+        }
+
+        // Section: Sensasi Taktil & Haptic
+        item {
+            Text(
+                text = "RESPON TAKTIL & INTERAKSI",
+                style = TextStyle(
+                    fontWeight = FontWeight.Black,
+                    fontSize = 12.sp,
+                    letterSpacing = 1.5.sp,
+                    color = Color.Black
+                ),
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+
+        // Kartu Neobrutal: RESPON TAKTIL / GETAR (Vibration / Haptic Switch)
+        item {
+            NeobrutalCard(
+                backgroundColor = Color.White,
+                borderWidth = 2.dp,
+                shadowOffset = 4.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(if (uiState.isHapticEnabled) RetroYellow else Color.LightGray, RectangleShape)
+                            .border(2.dp, Color.Black, RectangleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.TouchApp,
+                            contentDescription = "Haptic Feedback",
+                            tint = Color.Black,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "RESPON TAKTIL / GETAR",
+                            style = TextStyle(
+                                fontWeight = FontWeight.Black,
+                                fontSize = 13.sp,
+                                letterSpacing = 0.5.sp,
+                                color = Color.Black
+                            )
+                        )
+                        Text(
+                            text = if (uiState.isHapticEnabled)
+                                "Getaran taktil mekanik aktif pada tombol & dialog"
+                            else
+                                "Umpan balik getaran dinonaktifkan",
+                            style = TextStyle(
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 11.sp,
+                                color = Color.Black.copy(alpha = 0.6f)
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    com.sena.financetracker.ui.components.NeobrutalSwitch(
+                        checked = uiState.isHapticEnabled,
+                        onCheckedChange = onToggleHaptic
+                    )
+                }
+            }
         }
 
         // Section: Informasi Sistem & Basis Data

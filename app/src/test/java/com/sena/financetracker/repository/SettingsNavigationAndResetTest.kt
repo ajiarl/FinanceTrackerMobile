@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -200,5 +201,22 @@ class SettingsNavigationAndResetTest {
 
         val all = repository.getAllTransactions().first()
         assertEquals(2, all.size)
+    }
+
+    @Test
+    fun testHapticFeedbackTogglePreference() = runBlocking {
+        // Default haptic feedback harus aktif (true)
+        val initialHaptic = repository.isHapticEnabled().first()
+        assertTrue(initialHaptic)
+
+        // Toggle nonaktif (false)
+        repository.setHapticEnabled(false)
+        val disabledHaptic = repository.isHapticEnabled().first()
+        assertFalse(disabledHaptic)
+
+        // Toggle kembali aktif (true)
+        repository.setHapticEnabled(true)
+        val reEnabledHaptic = repository.isHapticEnabled().first()
+        assertTrue(reEnabledHaptic)
     }
 }

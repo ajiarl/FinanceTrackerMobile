@@ -104,7 +104,8 @@ class FinanceViewModel(
         val categories: List<CategoryEntity>,
         val budgets: List<BudgetProgressItem>,
         val notifications: List<NotificationEntity>,
-        val unreadNotificationCount: Int
+        val unreadNotificationCount: Int,
+        val isHapticEnabled: Boolean
     )
 
     /**
@@ -149,14 +150,15 @@ class FinanceViewModel(
             NotifData(notifs, unreadCount)
         }
 
-        val dataFlow = combine(coreDataFlow, notifDataFlow) { core, notif ->
+        val dataFlow = combine(coreDataFlow, notifDataFlow, repository.isHapticEnabled()) { core, notif, haptic ->
             DataBundle(
                 transactions = core.transactions,
                 accounts = core.accounts,
                 categories = core.categories,
                 budgets = core.budgets,
                 notifications = notif.notifications,
-                unreadNotificationCount = notif.unreadNotificationCount
+                unreadNotificationCount = notif.unreadNotificationCount,
+                isHapticEnabled = haptic
             )
         }
 
@@ -176,12 +178,20 @@ class FinanceViewModel(
                     reportsPreset = filter.reportsPreset,
                     aiInsightText = filter.aiInsightText,
                     isAiInsightLoading = filter.isAiInsightLoading,
-                    aiInsightError = filter.aiInsightError
+                    aiInsightError = filter.aiInsightError,
+                    isHapticEnabled = data.isHapticEnabled
                 ).copy(isLoading = false)
             }.collect { newState ->
                 _uiState.value = newState
             }
         }
+    }
+
+    /**
+     * Mengatur preferensi getaran / sensasi taktil Neobrutal (on/off).
+     */
+    fun setHapticEnabled(enabled: Boolean) {
+        repository.setHapticEnabled(enabled)
     }
 
     /**

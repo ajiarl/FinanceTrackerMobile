@@ -21,7 +21,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val appDatabase = AppDatabase.getInstance(this)
-        val repository = TransactionRepository(appDatabase)
+        val prefs = getSharedPreferences("finance_prefs", MODE_PRIVATE)
+        val repository = TransactionRepository(appDatabase, prefs)
         val viewModel = ViewModelProvider(
             this,
             FinanceViewModel.Factory(repository)

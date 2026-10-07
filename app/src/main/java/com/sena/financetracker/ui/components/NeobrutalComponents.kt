@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
@@ -239,6 +242,64 @@ fun NeobrutalInputField(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Strict Neobrutalism Toggle Switch:
+ * - Thick black border
+ * - Hard shadow
+ * - Rectangular track & thumb
+ * - Vivid RetroYellow when checked, Muted Gray when unchecked
+ */
+@Composable
+fun NeobrutalSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    checkedColor: Color = RetroYellow,
+    uncheckedColor: Color = Color(0xFFE5E7EB),
+    thumbColor: Color = Color.Black
+) {
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+
+    Box(
+        modifier = modifier
+            .width(54.dp)
+            .height(30.dp)
+            .clickable {
+                try {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                } catch (_: Exception) {}
+                onCheckedChange(!checked)
+            }
+    ) {
+        // Drop shadow
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 2.dp, y = 2.dp)
+                .background(Color.Black, RectangleShape)
+        )
+
+        // Track container
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(if (checked) checkedColor else uncheckedColor, RectangleShape)
+                .border(2.dp, Color.Black, RectangleShape)
+                .padding(2.dp)
+        ) {
+            // Thumb
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(22.dp)
+                    .align(if (checked) Alignment.CenterEnd else Alignment.CenterStart)
+                    .background(thumbColor, RectangleShape)
+                    .border(1.dp, Color.Black, RectangleShape)
+            )
         }
     }
 }

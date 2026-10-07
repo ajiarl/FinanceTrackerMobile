@@ -151,8 +151,14 @@ fun AiInsightsPanel(
                 }
 
                 // Tombol Refresh Neobrutal
+                val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
                 Box(
-                    modifier = Modifier.clickable(enabled = !isLoading) { onRefresh() }
+                    modifier = Modifier.clickable(enabled = !isLoading) {
+                        try {
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                        } catch (_: Exception) {}
+                        onRefresh()
+                    }
                 ) {
                     Box(
                         modifier = Modifier

@@ -41,7 +41,8 @@ import com.sena.financetracker.ui.components.RetroYellow
 fun NeobrutalBottomNav(
     currentRoute: String,
     onTabSelected: (Screen) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isHapticEnabled: Boolean = true
 ) {
     Box(
         modifier = modifier
@@ -66,13 +67,21 @@ fun NeobrutalBottomNav(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
             val items = Screen.bottomNavItems
             items.forEach { screen ->
                 val isSelected = currentRoute == screen.route
                 BottomNavItem(
                     screen = screen,
                     isSelected = isSelected,
-                    onClick = { onTabSelected(screen) },
+                    onClick = {
+                        if (isHapticEnabled) {
+                            try {
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                            } catch (_: Exception) {}
+                        }
+                        onTabSelected(screen)
+                    },
                     modifier = Modifier.weight(1f)
                 )
             }

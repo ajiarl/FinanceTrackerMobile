@@ -100,7 +100,8 @@ data class FinanceUiState(
     val reportsAnalytics: ReportsAnalyticsState = ReportsAnalyticsState(),
     val aiInsightText: String? = null,
     val isAiInsightLoading: Boolean = false,
-    val aiInsightError: String? = null
+    val aiInsightError: String? = null,
+    val isHapticEnabled: Boolean = true
 )
 
 /**
@@ -353,6 +354,7 @@ fun calculateFinanceTotals(
     aiInsightText: String? = null,
     isAiInsightLoading: Boolean = false,
     aiInsightError: String? = null,
+    isHapticEnabled: Boolean = true,
     currentDate: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
     referenceDate: Date = Date()
 ): FinanceUiState {
@@ -404,6 +406,7 @@ fun calculateFinanceTotals(
         reportsAnalytics = reportsState,
         aiInsightText = aiInsightText,
         isAiInsightLoading = isAiInsightLoading,
-        aiInsightError = aiInsightError
+        aiInsightError = aiInsightError,
+        isHapticEnabled = isHapticEnabled
     )
 }

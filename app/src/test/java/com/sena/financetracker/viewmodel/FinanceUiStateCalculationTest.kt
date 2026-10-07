@@ -78,5 +78,18 @@ class FinanceUiStateCalculationTest {
         assertEquals("Hemat 50% bos!", state.aiInsightText)
         assertEquals(false, state.isAiInsightLoading)
         assertEquals(null, state.aiInsightError)
+        assertEquals(true, state.isHapticEnabled)
+    }
+
+    @Test
+    fun testCalculateFinanceTotalsWithHapticDisabled() {
+        val state = calculateFinanceTotals(
+            transactions = emptyList(),
+            accounts = emptyList(),
+            categories = emptyList(),
+            isHapticEnabled = false
+        )
+
+        assertEquals(false, state.isHapticEnabled)
     }
 }

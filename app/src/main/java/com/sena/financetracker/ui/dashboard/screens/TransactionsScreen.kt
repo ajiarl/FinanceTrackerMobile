@@ -87,8 +87,12 @@ fun TransactionsScreen(
                 }
 
                 // Tombol Neobrutal "EKSPOR CSV"
+                val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
                 Box(
                     modifier = Modifier.clickable {
+                        try {
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        } catch (_: Exception) {}
                         if (uiState.transactions.isEmpty()) {
                             Toast.makeText(context, "Belum ada transaksi untuk diekspor!", Toast.LENGTH_SHORT).show()
                         } else {

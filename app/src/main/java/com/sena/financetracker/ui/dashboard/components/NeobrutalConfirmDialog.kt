@@ -128,6 +128,7 @@ fun NeobrutalConfirmDialog(
                     Spacer(modifier = Modifier.width(12.dp))
 
                     // Tombol KONFIRMASI (Merah)
+                    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
                     Box {
                         // Shadow tombol
                         Box(
@@ -139,7 +140,12 @@ fun NeobrutalConfirmDialog(
 
                         Box(
                             modifier = Modifier
-                                .clickable(onClick = onConfirm)
+                                .clickable {
+                                    try {
+                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                    } catch (_: Exception) {}
+                                    onConfirm()
+                                }
                                 .background(confirmButtonColor, RectangleShape)
                                 .border(2.dp, Color.Black, RectangleShape)
                                 .padding(horizontal = 18.dp, vertical = 10.dp)

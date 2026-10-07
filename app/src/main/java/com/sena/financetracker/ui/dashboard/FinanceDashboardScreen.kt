@@ -115,6 +115,7 @@ fun FinanceDashboardScreen(
         onClearAllNotifications = { viewModel.clearAllNotifications() },
         onDeleteNotification = { viewModel.deleteNotification(it) },
         onResetTransactions = { viewModel.resetTransactions() },
+        onToggleHaptic = { viewModel.setHapticEnabled(it) },
         onImportTransactionsBatch = { transactions, onDone ->
             viewModel.importTransactionsBatch(
                 transactions = transactions,
@@ -161,6 +162,7 @@ fun FinanceDashboardContent(
     onClearAllNotifications: () -> Unit = {},
     onDeleteNotification: (Long) -> Unit = {},
     onResetTransactions: () -> Unit = {},
+    onToggleHaptic: (Boolean) -> Unit = {},
     onImportTransactionsBatch: (List<TransactionEntity>, () -> Unit) -> Unit = { _, _ -> },
     onRefreshAiInsight: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -183,23 +185,34 @@ fun FinanceDashboardContent(
         modifier = modifier.fillMaxSize(),
         containerColor = RetroCanvas,
         bottomBar = {
-            NeobrutalBottomNav(
-                currentRoute = currentRoute,
-                onTabSelected = { targetScreen ->
-                    if (currentRoute != targetScreen.route) {
-                        navController.navigate(targetScreen.route) {
-                            popUpTo(Screen.Dashboard.route) {
-                                saveState = true
+            if (currentRoute in Screen.bottomNavItems.map { it.route }) {
+                NeobrutalBottomNav(
+                    currentRoute = currentRoute,
+                    onTabSelected = { targetScreen ->
+                        if (currentRoute != targetScreen.route) {
+                            navController.navigate(targetScreen.route) {
+                                popUpTo(Screen.Dashboard.route) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                            launchSingleTop = true
-                            restoreState = true
                         }
-                    }
-                }
-            )
+                    },
+                    isHapticEnabled = uiState.isHapticEnabled
+                )
+            }
         },
         floatingActionButton = {
-            DashboardFab(onClick = { showAddDialog = true })
+            val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+            DashboardFab(onClick = {
+                if (uiState.isHapticEnabled) {
+                    try {
+                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    } catch (_: Exception) {}
+                }
+                showAddDialog = true
+            })
         },
         floatingActionButtonPosition = FabPosition.End
     ) { innerPadding ->
@@ -318,7 +331,8 @@ fun FinanceDashboardContent(
                     onNavigateToImport = {
                         navController.navigate(Screen.Import.route)
                     },
-                    onResetTransactions = onResetTransactions
+                    onResetTransactions = onResetTransactions,
+                    onToggleHaptic = onToggleHaptic
                 )
             }
 

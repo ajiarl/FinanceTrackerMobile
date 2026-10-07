@@ -50,17 +50,29 @@ class TransactionRepository(
         override suspend fun markAllAsRead() {}
         override suspend fun clearAllNotifications() {}
         override suspend fun deleteNotification(id: Long) {}
-    }
+    },
+    private val preferences: android.content.SharedPreferences? = null
 ) {
+    private val _hapticEnabledFlow = kotlinx.coroutines.flow.MutableStateFlow(
+        preferences?.getBoolean("KEY_HAPTIC_ENABLED", true) ?: true
+    )
+
+    fun isHapticEnabled(): Flow<Boolean> = _hapticEnabledFlow
+
+    fun setHapticEnabled(enabled: Boolean) {
+        _hapticEnabledFlow.value = enabled
+        preferences?.edit()?.putBoolean("KEY_HAPTIC_ENABLED", enabled)?.apply()
+    }
     /**
      * Konstruktor praktis berbasis database Room/SQLite terpadu [AppDatabase].
      */
-    constructor(db: AppDatabase) : this(
+    constructor(db: AppDatabase, preferences: android.content.SharedPreferences? = null) : this(
         db.transactionDao,
         db.accountDao,
         db.categoryDao,
         db.budgetDao,
-        db.notificationDao
+        db.notificationDao,
+        preferences
     )
 
     /**
