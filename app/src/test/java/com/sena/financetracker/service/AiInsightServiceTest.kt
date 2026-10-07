@@ -1,5 +1,8 @@
 package com.sena.financetracker.service
 
+import com.sena.financetracker.data.AccountEntity
+import com.sena.financetracker.data.BudgetEntity
+import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.TransactionEntity
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -9,10 +12,10 @@ import org.junit.Test
 
 /**
  * Unit test untuk AiInsightService:
- * - Pembentukan user prompt & grounding rincian 3 kategori teratas
+ * - Pembentukan user prompt & grounding holistik 3 pilar (Rekening, Arus Kas, Anggaran)
  * - Pembentukan payload JSON untuk model openai/gpt-oss-120b dengan persona Pak Hemat & panggilan 'Aji'
  * - Parsing respons JSON completion
- * - Validasi aturan generator local fallback (boncos zero income, defisit, saving rate, sapaan 'Ji')
+ * - Validasi aturan generator local fallback (boncos zero income, defisit, budget jebol, saving rate)
  * - Eksekusi getFinancialInsight dengan fallback saat api key kosong
  */
 class AiInsightServiceTest {
@@ -66,7 +69,29 @@ class AiInsightServiceTest {
     }
 
     @Test
-    fun buildUserPrompt_containsTopThreeCategoriesAndGroundedFigures() {
+    fun buildUserPrompt_containsHolisticThreePillarsAndGroundedFigures() {
+        val accounts = listOf(
+            AccountEntity(id = 1, name = "BCA Utama", type = "BANK", balance = 4_500_000.0),
+            AccountEntity(id = 2, name = "GoPay", type = "E-WALLET", balance = 25_000.0)
+        )
+        val overBudgets = listOf(
+            BudgetProgressItem(
+                budget = BudgetEntity(id = 1, name = "Budget Makan", category = "Makanan", limitAmount = 1_000_000.0, period = "MONTHLY"),
+                spentAmount = 1_500_000.0,
+                percentage = 150,
+                isOver = true,
+                statusLevel = "CRITICAL"
+            )
+        )
+        val criticalBudgets = listOf(
+            BudgetProgressItem(
+                budget = BudgetEntity(id = 2, name = "Budget Hiburan", category = "Hiburan", limitAmount = 500_000.0, period = "MONTHLY"),
+                spentAmount = 450_000.0,
+                percentage = 90,
+                isOver = false,
+                statusLevel = "WARNING"
+            )
+        )
         val topCategories = listOf(
             "Makanan" to 1_500_000.0,
             "Tagihan" to 800_000.0,
@@ -74,6 +99,10 @@ class AiInsightServiceTest {
         )
 
         val prompt = AiInsightService.buildUserPrompt(
+            totalNetWorth = 4_525_000.0,
+            accounts = accounts,
+            overBudgets = overBudgets,
+            criticalBudgets = criticalBudgets,
             totalIncome = 5_000_000.0,
             totalExpense = 2_700_000.0,
             topCategories = topCategories,
@@ -81,14 +110,28 @@ class AiInsightServiceTest {
             periodTitle = "Bulan Ini"
         )
 
-        assertTrue(prompt.contains("Ringkasan Keuangan Aji (Bulan Ini):"))
+        // Pilar 1: Rekening
+        assertTrue(prompt.contains("[1] Ringkasan Saldo & Rekening:"))
+        assertTrue(prompt.contains("4.525.000") || prompt.contains("4525000"))
+        assertTrue(prompt.contains("BCA Utama"))
+        assertTrue(prompt.contains("GoPay"))
+        assertTrue(prompt.contains("SALDO KRITIS < 50rb!"))
+
+        // Pilar 2: Arus Kas
+        assertTrue(prompt.contains("[2] Arus Kas Periode Ini:"))
         assertTrue(prompt.contains("5.000.000") || prompt.contains("5000000"))
         assertTrue(prompt.contains("2.700.000") || prompt.contains("2700000"))
-        assertTrue(prompt.contains("46%")) // (5jt - 2.7jt) / 5jt = 46%
+        assertTrue(prompt.contains("46%"))
         assertTrue(prompt.contains("Makanan"))
         assertTrue(prompt.contains("Tagihan"))
         assertTrue(prompt.contains("Hiburan"))
         assertTrue(prompt.contains("20 transaksi"))
+
+        // Pilar 3: Anggaran
+        assertTrue(prompt.contains("[3] Status Anggaran / Budget:"))
+        assertTrue(prompt.contains("JEBOL!"))
+        assertTrue(prompt.contains("Budget Makan") || prompt.contains("Makanan"))
+        assertTrue(prompt.contains("150%"))
     }
 
     @Test
@@ -99,6 +142,10 @@ class AiInsightServiceTest {
         )
 
         val insight = AiInsightService.generateLocalFallbackInsight(
+            totalNetWorth = 2_000_000.0,
+            accounts = listOf(AccountEntity(id = 1, name = "BCA", type = "BANK", balance = 2_000_000.0)),
+            overBudgets = emptyList(),
+            criticalBudgets = emptyList(),
             totalIncome = 0.0,
             totalExpense = 650_000.0,
             topCategories = topCategories,
@@ -118,6 +165,10 @@ class AiInsightServiceTest {
         )
 
         val insight = AiInsightService.generateLocalFallbackInsight(
+            totalNetWorth = 50_000.0,
+            accounts = listOf(AccountEntity(id = 1, name = "Dompet", type = "CASH", balance = 50_000.0)),
+            overBudgets = emptyList(),
+            criticalBudgets = emptyList(),
             totalIncome = 3_000_000.0,
             totalExpense = 4_500_000.0,
             topCategories = topCategories,
@@ -127,6 +178,37 @@ class AiInsightServiceTest {
         assertTrue(insight.contains("Defisit parah, Bos!"))
         assertTrue(insight.contains("Elektronik"))
         assertTrue(insight.contains("sok sultan"))
+        assertTrue(insight.contains("lampu merah"))
+    }
+
+    @Test
+    fun generateLocalFallbackInsight_whenBudgetJebol_returnsBudgetJebolWarning() {
+        val topCategories = listOf(
+            "Makanan" to 1_500_000.0
+        )
+        val overBudgets = listOf(
+            BudgetProgressItem(
+                budget = BudgetEntity(id = 1, name = "Makan", category = "Makanan", limitAmount = 1_000_000.0, period = "MONTHLY"),
+                spentAmount = 1_500_000.0,
+                percentage = 150,
+                isOver = true,
+                statusLevel = "CRITICAL"
+            )
+        )
+
+        val insight = AiInsightService.generateLocalFallbackInsight(
+            totalNetWorth = 3_000_000.0,
+            accounts = listOf(AccountEntity(id = 1, name = "BCA", type = "BANK", balance = 3_000_000.0)),
+            overBudgets = overBudgets,
+            criticalBudgets = emptyList(),
+            totalIncome = 5_000_000.0,
+            totalExpense = 2_000_000.0,
+            topCategories = topCategories,
+            periodTitle = "Bulan Ini"
+        )
+
+        assertTrue(insight.contains("Anggaran kamu jebol berantakan") || insight.contains("jebol parah"))
+        assertTrue(insight.contains("Makan") || insight.contains("Makanan"))
     }
 
     @Test
@@ -136,6 +218,10 @@ class AiInsightServiceTest {
         )
 
         val insight = AiInsightService.generateLocalFallbackInsight(
+            totalNetWorth = 20_000_000.0,
+            accounts = listOf(AccountEntity(id = 1, name = "BCA", type = "BANK", balance = 20_000_000.0)),
+            overBudgets = emptyList(),
+            criticalBudgets = emptyList(),
             totalIncome = 10_000_000.0,
             totalExpense = 1_500_000.0,
             topCategories = topCategories,
@@ -148,12 +234,17 @@ class AiInsightServiceTest {
 
     @Test
     fun getFinancialInsight_whenApiKeyIsBlank_usesLocalFallbackGracefully() = runBlocking {
+        val accounts = listOf(
+            AccountEntity(id = 1, name = "BCA", type = "BANK", balance = 5_000_000.0)
+        )
         val txs = listOf(
             TransactionEntity(id = 1, title = "Gaji", amount = 8_000_000.0, type = "INCOME", category = "Gaji", date = "2026-10-01", accountId = 1),
             TransactionEntity(id = 2, title = "Makan", amount = 1_500_000.0, type = "EXPENSE", category = "Makanan", date = "2026-10-02", accountId = 1)
         )
 
         val result = AiInsightService.getFinancialInsight(
+            accounts = accounts,
+            budgets = emptyList(),
             transactions = txs,
             periodTitle = "Bulan Ini",
             apiKey = ""
@@ -165,14 +256,16 @@ class AiInsightServiceTest {
     }
 
     @Test
-    fun getFinancialInsight_whenEmptyTransactions_returnsNotice() = runBlocking {
+    fun getFinancialInsight_whenEmptyTransactionsAndAccounts_returnsNotice() = runBlocking {
         val result = AiInsightService.getFinancialInsight(
+            accounts = emptyList(),
+            budgets = emptyList(),
             transactions = emptyList(),
             periodTitle = "Bulan Ini",
             apiKey = ""
         )
 
-        assertTrue(result.contains("Belum ada transaksi"))
+        assertTrue(result.contains("Belum ada catatan rekening dan transaksi"))
         assertTrue(result.contains("Ji"))
     }
 }

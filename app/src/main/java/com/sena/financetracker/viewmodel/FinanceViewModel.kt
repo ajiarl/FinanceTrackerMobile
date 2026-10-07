@@ -326,6 +326,8 @@ class FinanceViewModel(
             _aiInsightError.value = null
             try {
                 val allTx = repository.getAllTransactions().first()
+                val allAccounts = repository.getAllAccounts().first()
+                val allBudgets = repository.getBudgetProgress().first()
                 val targetTransactions = if (!startDate.isNullOrBlank() && !endDate.isNullOrBlank()) {
                     allTx.filter { tx ->
                         val date = tx.date.take(10)
@@ -361,6 +363,8 @@ class FinanceViewModel(
                 }
 
                 val insight = com.sena.financetracker.service.AiInsightService.getFinancialInsight(
+                    accounts = allAccounts,
+                    budgets = allBudgets,
                     transactions = targetTransactions,
                     periodTitle = periodTitle
                 )
