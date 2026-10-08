@@ -139,9 +139,53 @@ object ApiKeyStorage {
     fun hasCustomApiKey(context: Context): Boolean {
         return try {
             val prefs = getSecurePrefs(context)
-            !prefs.getString(KEY_GROQ_API, null).isNullOrBlank()
+            val stored = prefs.getString(KEY_GROQ_API, null)
+            !stored.isNullOrBlank() || !inMemoryCachedKey.isNullOrBlank()
         } catch (e: Throwable) {
-            false
+            !inMemoryCachedKey.isNullOrBlank()
+        }
+    }
+
+    /**
+     * Memeriksa apakah user telah mengonfigurasi custom API Key pada cache in-memory.
+     *
+     * @return True jika in-memory key tidak kosong.
+     */
+    fun hasCustomApiKey(): Boolean {
+        return !inMemoryCachedKey.isNullOrBlank()
+    }
+
+    /**
+     * Menyimpan Groq API Key ke dalam cache in-memory tanpa context Android.
+     *
+     * @param key API Key yang akan disimpan.
+     */
+    fun setGroqApiKey(key: String) {
+        setInMemoryApiKey(key)
+    }
+
+    /**
+     * Menghapus Groq API Key dari cache in-memory tanpa context Android.
+     */
+    fun clearGroqApiKey() {
+        inMemoryCachedKey = null
+    }
+
+    /**
+     * Mengambil Groq API Key dalam format masked (contoh: gsk_••••••••1234)
+     * untuk keperluan tampilan UI yang aman tanpa mengekspos rahasia mentah (SEC-02).
+     *
+     * @param context Context Android opsional untuk membaca EncryptedSharedPreferences.
+     * @return String API key yang telah disamarkan atau string kosong jika belum disetel.
+     */
+    fun getMaskedGroqApiKey(context: Context? = null): String {
+        val rawKey = if (context != null) getGroqApiKey(context) else getGroqApiKey()
+        if (rawKey.isBlank()) return ""
+        val trimmed = rawKey.trim()
+        return if (trimmed.length <= 8) {
+            "••••••••"
+        } else {
+            "${trimmed.take(4)}••••••••${trimmed.takeLast(4)}"
         }
     }
 

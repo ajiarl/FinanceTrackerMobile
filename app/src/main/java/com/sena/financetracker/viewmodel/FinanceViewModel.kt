@@ -1,5 +1,6 @@
 package com.sena.financetracker.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -40,7 +41,8 @@ import java.util.Locale
  */
 class FinanceViewModel(
     private val repository: TransactionRepository,
-    scopeOverride: CoroutineScope? = null
+    scopeOverride: CoroutineScope? = null,
+    private val context: Context? = null
 ) : ViewModel() {
 
     private val activeScope: CoroutineScope = scopeOverride ?: viewModelScope
@@ -51,6 +53,13 @@ class FinanceViewModel(
      * StateFlow publik yang diobservasi oleh composable UI layer.
      */
     val uiState: StateFlow<FinanceUiState> = _uiState.asStateFlow()
+
+    private val _hasApiKey = MutableStateFlow(false)
+
+    /**
+     * StateFlow publik yang mengindikasikan apakah Groq API Key tersimpan dan aktif.
+     */
+    val hasApiKey: StateFlow<Boolean> = _hasApiKey.asStateFlow()
 
     /**
      * StateFlow daftar notifikasi sistem aplikasi.
@@ -101,6 +110,7 @@ class FinanceViewModel(
     }
 
     init {
+        refreshApiKeyStatus()
         observeData()
     }
 
@@ -114,7 +124,8 @@ class FinanceViewModel(
         val isAiInsightLoading: Boolean,
         val aiInsightError: String?,
         val pageSize: Int,
-        val visibleTransactionCount: Int
+        val visibleTransactionCount: Int,
+        val hasApiKey: Boolean
     )
 
     private data class CoreData(
@@ -153,13 +164,13 @@ class FinanceViewModel(
             if (query.isEmpty()) 0L else 300L
         }
 
-        val pagingFlow = combine(_pageSize, _visibleTransactionCount) { size, count -> Pair(size, count) }
+        val pagingFlow = combine(_pageSize, _visibleTransactionCount, _hasApiKey) { size, count, hasKey -> Triple(size, count, hasKey) }
         val filterParamsFlow = combine(
             combine(debouncedSearchQuery, _selectedCategoryFilter, _selectedDateFilter) { q, c, d -> Triple(q, c, d) },
             combine(_selectedFilterTab, _reportsPeriodPreset) { t, r -> Pair(t, r) },
             combine(_aiInsightText, _isAiInsightLoading, _aiInsightError) { text, loading, err -> Triple(text, loading, err) },
             pagingFlow
-        ) { (query, category, dateFilter), (typeFilter, reportsPreset), (aiText, aiLoading, aiErr), (pageSize, visibleCount) ->
+        ) { (query, category, dateFilter), (typeFilter, reportsPreset), (aiText, aiLoading, aiErr), (pageSize, visibleCount, hasKey) ->
             FilterParams(
                 query = query,
                 category = category,
@@ -170,7 +181,8 @@ class FinanceViewModel(
                 isAiInsightLoading = aiLoading,
                 aiInsightError = aiErr,
                 pageSize = pageSize,
-                visibleTransactionCount = visibleCount
+                visibleTransactionCount = visibleCount,
+                hasApiKey = hasKey
             )
         }
 
@@ -219,6 +231,7 @@ class FinanceViewModel(
                     aiInsightText = filter.aiInsightText,
                     isAiInsightLoading = filter.isAiInsightLoading,
                     aiInsightError = filter.aiInsightError,
+                    hasApiKey = filter.hasApiKey,
                     isHapticEnabled = data.isHapticEnabled,
                     pageSize = filter.pageSize,
                     visibleTransactionCount = filter.visibleTransactionCount
@@ -597,11 +610,18 @@ class FinanceViewModel(
                     else -> "Bulan Ini"
                 }
 
+                val currentApiKey = if (context != null) {
+                    com.sena.financetracker.util.SecurityConfig.getGroqApiKey(context)
+                } else {
+                    com.sena.financetracker.util.SecurityConfig.getGroqApiKey()
+                }
+
                 val insight = com.sena.financetracker.service.AiInsightService.getFinancialInsight(
                     accounts = allAccounts,
                     budgets = allBudgets,
                     transactions = targetTransactions,
-                    periodTitle = periodTitle
+                    periodTitle = periodTitle,
+                    apiKey = currentApiKey
                 )
                 _aiInsightText.value = insight
             } catch (e: Exception) {
@@ -803,13 +823,62 @@ class FinanceViewModel(
     }
 
     /**
+     * Memperbarui status ketersediaan API key dari secure storage atau cache in-memory.
+     *
+     * @param context Context Android opsional untuk mengakses EncryptedSharedPreferences.
+     */
+    fun refreshApiKeyStatus(context: Context? = null) {
+        val targetContext = context ?: this.context
+        _hasApiKey.value = if (targetContext != null) {
+            com.sena.financetracker.security.ApiKeyStorage.hasCustomApiKey(targetContext)
+        } else {
+            com.sena.financetracker.security.ApiKeyStorage.hasCustomApiKey()
+        }
+    }
+
+    /**
+     * Menyimpan Groq API Key ke dalam secure storage terenkripsi dan memperbarui status StateFlow.
+     *
+     * @param key API key mentah yang dimasukkan user.
+     * @param context Context Android opsional untuk menulis ke EncryptedSharedPreferences.
+     */
+    fun saveGroqApiKey(key: String, context: Context? = null) {
+        val targetContext = context ?: this.context
+        val cleanKey = key.trim()
+        if (targetContext != null) {
+            com.sena.financetracker.security.ApiKeyStorage.setGroqApiKey(targetContext, cleanKey)
+        } else {
+            com.sena.financetracker.security.ApiKeyStorage.setGroqApiKey(cleanKey)
+        }
+        _hasApiKey.value = cleanKey.isNotBlank()
+    }
+
+    /**
+     * Menghapus Groq API Key dari secure storage dan memperbarui status StateFlow ke false.
+     *
+     * @param context Context Android opsional untuk menghapus dari EncryptedSharedPreferences.
+     */
+    fun clearGroqApiKey(context: Context? = null) {
+        val targetContext = context ?: this.context
+        if (targetContext != null) {
+            com.sena.financetracker.security.ApiKeyStorage.clearGroqApiKey(targetContext)
+        } else {
+            com.sena.financetracker.security.ApiKeyStorage.clearGroqApiKey()
+        }
+        _hasApiKey.value = false
+    }
+
+    /**
      * Factory provider untuk inisialisasi [FinanceViewModel] dengan dependency injection manual.
      */
-    class Factory(private val repository: TransactionRepository) : ViewModelProvider.Factory {
+    class Factory(
+        private val repository: TransactionRepository,
+        private val context: Context? = null
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(FinanceViewModel::class.java)) {
-                return FinanceViewModel(repository) as T
+                return FinanceViewModel(repository, context = context) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }

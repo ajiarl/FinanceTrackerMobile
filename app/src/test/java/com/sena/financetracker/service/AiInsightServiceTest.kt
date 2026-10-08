@@ -505,4 +505,100 @@ class AiInsightServiceTest {
         assertTrue("Insight harus mengutip judul transaksi signifikan", insight.contains("Gojek Sultan Delivery"))
         assertTrue("Insight harus mengutip catatan transaksi unik", insight.contains("Mager masak seharian"))
     }
+
+    @Test
+    fun generateLocalFallbackInsight_roastsElectronicsAndGearWithoutFoodSlop() {
+        val transactions = listOf(
+            TransactionEntity(
+                id = 10,
+                title = "Beli Keyboard Mechanical",
+                amount = 1_200_000.0,
+                type = "EXPENSE",
+                category = "Elektronik",
+                date = "2026-10-08",
+                notes = "Keracunan racun setup meja"
+            )
+        )
+
+        val insight = AiInsightService.generateLocalFallbackInsight(
+            totalNetWorth = 10_000_000.0,
+            accounts = listOf(AccountEntity(id = 1, name = "BCA", type = "BANK", balance = 10_000_000.0)),
+            overBudgets = emptyList(),
+            criticalBudgets = emptyList(),
+            totalIncome = 5_000_000.0,
+            totalExpense = 2_500_000.0,
+            topCategories = listOf("Elektronik" to 2_500_000.0),
+            periodTitle = "Bulan Ini",
+            significantTransactions = transactions
+        )
+
+        assertTrue("Insight harus menyertakan kategori Elektronik", insight.contains("Elektronik"))
+        assertTrue("Insight harus mengutip judul transaksi keyboard", insight.contains("Beli Keyboard Mechanical"))
+        assertTrue("Insight harus mengutip catatan unik transaksi", insight.contains("Keracunan racun setup meja"))
+        assertTrue("Insight harus menyebut nominal transaksi", insight.contains("Rp 1.200.000"))
+        assertTrue("Insight harus memuat sindiran terkait gear/gadget/teknologi", insight.contains("gear") || insight.contains("teknologi") || insight.contains("setup"))
+        assertFalse("Insight dilarang melontarkan sindiran jajan/kopi jika pengeluaran non-makanan", insight.contains("jajan delivery") || insight.contains("ngopi"))
+    }
+
+    @Test
+    fun generateLocalFallbackInsight_roastsGamingHabitsAndDigitalPixels() {
+        val transactions = listOf(
+            TransactionEntity(
+                id = 11,
+                title = "Steam Summer Sale",
+                amount = 500_000.0,
+                type = "EXPENSE",
+                category = "Game & Hiburan",
+                date = "2026-10-08",
+                notes = "Diskon game khilaf"
+            )
+        )
+
+        val insight = AiInsightService.generateLocalFallbackInsight(
+            totalNetWorth = 2_000_000.0,
+            accounts = listOf(AccountEntity(id = 2, name = "GoPay", type = "E-WALLET", balance = 2_000_000.0)),
+            overBudgets = emptyList(),
+            criticalBudgets = emptyList(),
+            totalIncome = 0.0,
+            totalExpense = 800_000.0,
+            topCategories = listOf("Game & Hiburan" to 800_000.0),
+            periodTitle = "Bulan Ini",
+            significantTransactions = transactions
+        )
+
+        assertTrue("Insight harus mengutip judul transaksi Steam", insight.contains("Steam Summer Sale"))
+        assertTrue("Insight harus mengutip catatan khilaf", insight.contains("Diskon game khilaf"))
+        assertTrue("Insight harus memuat sindiran game/pixel/hiburan", insight.contains("game") || insight.contains("pixel") || insight.contains("hiburan"))
+        assertFalse("Insight dilarang menyuruh rem jajan delivery untuk kategori game", insight.contains("jajan delivery"))
+    }
+
+    @Test
+    fun generateLocalFallbackInsight_roastsTransportationAndMobility() {
+        val transactions = listOf(
+            TransactionEntity(
+                id = 12,
+                title = "Isi Bensin Pertamax",
+                amount = 300_000.0,
+                type = "EXPENSE",
+                category = "Transportasi",
+                date = "2026-10-08"
+            )
+        )
+
+        val insight = AiInsightService.generateLocalFallbackInsight(
+            totalNetWorth = 5_000_000.0,
+            accounts = listOf(AccountEntity(id = 3, name = "Tunai", type = "CASH", balance = 5_000_000.0)),
+            overBudgets = emptyList(),
+            criticalBudgets = emptyList(),
+            totalIncome = 3_000_000.0,
+            totalExpense = 600_000.0,
+            topCategories = listOf("Transportasi" to 600_000.0),
+            periodTitle = "Bulan Ini",
+            significantTransactions = transactions
+        )
+
+        assertTrue("Insight harus menyertakan kategori Transportasi", insight.contains("Transportasi"))
+        assertTrue("Insight harus mengutip transaksi bensin", insight.contains("Isi Bensin Pertamax"))
+        assertTrue("Insight harus memuat sindiran transportasi/bensin/mobilitas", insight.contains("bensin") || insight.contains("transportasi") || insight.contains("mobilitas"))
+    }
 }

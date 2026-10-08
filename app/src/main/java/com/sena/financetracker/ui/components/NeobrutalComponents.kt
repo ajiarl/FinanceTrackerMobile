@@ -182,7 +182,8 @@ fun NeobrutalInputField(
     isTabularNums: Boolean = false,
     singleLine: Boolean = true,
     prefix: String? = null,
-    visualTransformation: VisualTransformation = VisualTransformation.None
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    trailing: @Composable (() -> Unit)? = null
 ) {
     Column(modifier = modifier) {
         if (!label.isNullOrBlank()) {
@@ -244,6 +245,11 @@ fun NeobrutalInputField(
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+                if (trailing != null) {
+                    Box(modifier = Modifier.padding(start = 8.dp)) {
+                        trailing()
+                    }
                 }
             }
         }

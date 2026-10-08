@@ -73,6 +73,7 @@ fun FinanceDashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val navController = rememberNavController()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     FinanceDashboardContent(
         uiState = uiState,
@@ -127,6 +128,8 @@ fun FinanceDashboardScreen(
         onRefreshAiInsight = { viewModel.fetchAiInsight() },
         onLoadMoreTransactions = { viewModel.loadMoreTransactions() },
         onClearErrorMessage = { viewModel.clearErrorMessage() },
+        onSaveGroqApiKey = { key -> viewModel.saveGroqApiKey(key, context) },
+        onClearGroqApiKey = { viewModel.clearGroqApiKey(context) },
         modifier = modifier
     )
 }
@@ -171,6 +174,8 @@ fun FinanceDashboardContent(
     onRefreshAiInsight: () -> Unit = {},
     onLoadMoreTransactions: () -> Unit = {},
     onClearErrorMessage: () -> Unit = {},
+    onSaveGroqApiKey: (String) -> Unit = {},
+    onClearGroqApiKey: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -336,7 +341,9 @@ fun FinanceDashboardContent(
                         navController.navigate(Screen.Import.route)
                     },
                     onResetTransactions = onResetTransactions,
-                    onToggleHaptic = onToggleHaptic
+                    onToggleHaptic = onToggleHaptic,
+                    onSaveGroqApiKey = onSaveGroqApiKey,
+                    onClearGroqApiKey = onClearGroqApiKey
                 )
             }
 

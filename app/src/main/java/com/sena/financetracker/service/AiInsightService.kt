@@ -424,19 +424,31 @@ object AiInsightService {
         val topCategoryAmount = topCategories.firstOrNull()?.second ?: 0.0
 
         val categoryRoast = when {
-            topCategoryName.contains("makan", ignoreCase = true) || topCategoryName.contains("kuliner", ignoreCase = true) ->
+            topCategoryName.contains("makan", ignoreCase = true) || topCategoryName.contains("kuliner", ignoreCase = true) || topCategoryName.contains("food", ignoreCase = true) ->
                 "Kebanyakan ngopi aesthetic sama jajan delivery bikin dompet gepeng."
-            topCategoryName.contains("belanja", ignoreCase = true) || topCategoryName.contains("shop", ignoreCase = true) ->
+            topCategoryName.contains("belanja", ignoreCase = true) || topCategoryName.contains("shop", ignoreCase = true) || topCategoryName.contains("fashion", ignoreCase = true) ->
                 "Kalap diskon e-commerce lagi kan lu?"
-            topCategoryName.contains("hiburan", ignoreCase = true) || topCategoryName.contains("game", ignoreCase = true) ->
+            topCategoryName.contains("hiburan", ignoreCase = true) || topCategoryName.contains("game", ignoreCase = true) || topCategoryName.contains("entertainment", ignoreCase = true) ->
                 "Self-reward berlebihan itu aslinya bunuh diri finansial pelan-pelan."
+            topCategoryName.contains("transport", ignoreCase = true) || topCategoryName.contains("kendaraan", ignoreCase = true) || topCategoryName.contains("bensin", ignoreCase = true) ->
+                "Beban bensin dan ongkos transportasi bengkak, rute mobilitas lu perlu dievaluasi."
+            topCategoryName.contains("elektronik", ignoreCase = true) || topCategoryName.contains("gadget", ignoreCase = true) || topCategoryName.contains("hardware", ignoreCase = true) ->
+                "FOMO upgrade gadget sama gear teknologi yang belum tentu naikin penghasilan."
+            topCategoryName.contains("tagihan", ignoreCase = true) || topCategoryName.contains("utilitas", ignoreCase = true) || topCategoryName.contains("langganan", ignoreCase = true) ->
+                "Beban tagihan rutin membengkak, sisir lagi langganan siluman yang jarang dipake."
+            topCategoryName.contains("hobi", ignoreCase = true) || topCategoryName.contains("olahraga", ignoreCase = true) ->
+                "Hobi jalan terus tapi saldo rekening stagnan, jangan sampai gear hobi lebih mahal dari dana darurat."
+            topCategoryName.contains("kesehatan", ignoreCase = true) || topCategoryName.contains("medis", ignoreCase = true) ->
+                "Pos medis emang penting, tapi jaga pola hidup biar gak bolak-balik boncos berobat."
+            topCategoryName.contains("pendidikan", ignoreCase = true) || topCategoryName.contains("buku", ignoreCase = true) ->
+                "Investasi leher ke atas bagus, asal ilmunya dipraktekin bukan cuma numpuk sertifikat."
             else ->
                 "Pos belanja ini jelas-jelas nyedot porsi kas paling rakus."
         }
 
-        val notableTx = significantTransactions
-            .filter { it.type.equals("EXPENSE", ignoreCase = true) }
-            .firstOrNull { it.notes.isNotBlank() }
+        val expenseTxs = significantTransactions.filter { it.type.equals("EXPENSE", ignoreCase = true) }
+        val notableTx = expenseTxs.firstOrNull { it.notes.isNotBlank() }
+            ?: expenseTxs.maxByOrNull { it.amount }
             ?: significantTransactions.firstOrNull { it.notes.isNotBlank() }
             ?: significantTransactions.firstOrNull { it.type.equals("EXPENSE", ignoreCase = true) && it.amount > 0 }
             ?: significantTransactions.firstOrNull()
@@ -444,10 +456,41 @@ object AiInsightService {
         val txQuote = if (notableTx != null && notableTx.amount > 0) {
             val safeTitle = notableTx.title.ifBlank { "pengeluaran" }
             val formattedAmount = "Rp ${rupiahFormat.format(notableTx.amount.toLong())}"
+            val lowerTitle = safeTitle.lowercase()
+            val lowerNotes = notableTx.notes.trim().lowercase()
+
+            val habitRoast = when {
+                lowerTitle.contains("kopi") || lowerTitle.contains("cafe") || lowerTitle.contains("starbucks") || lowerTitle.contains("boba") ->
+                    "demi segelas cairan manis bergengsi perusak cashflow"
+                lowerTitle.contains("game") || lowerTitle.contains("steam") || lowerTitle.contains("topup") || lowerTitle.contains("skin") ->
+                    "buat beli pixel game semu padahal saldo realita sekarat"
+                lowerTitle.contains("baju") || lowerTitle.contains("sepatu") || lowerTitle.contains("tas") || lowerTitle.contains("outfit") ->
+                    "biar outfit keliatan keren padahal isi dompet miris"
+                lowerTitle.contains("keyboard") || lowerTitle.contains("mouse") || lowerTitle.contains("gadget") || lowerTitle.contains("headphone") ->
+                    "upgrade setup yang fungsinya cuma buat pamer doang"
+                lowerTitle.contains("gofood") || lowerTitle.contains("grabfood") || lowerTitle.contains("shopeefood") || lowerTitle.contains("delivery") ->
+                    "ongkir dan biaya layanan delivery bikin bocor halus"
+                lowerTitle.contains("nonton") || lowerTitle.contains("bioskop") || lowerTitle.contains("konser") ->
+                    "hiburan sesaat yang bikin saldo babak belur"
+                lowerTitle.contains("bensin") || lowerTitle.contains("pertamax") || lowerTitle.contains("pertalite") || lowerTitle.contains("bbm") || lowerTitle.contains("ojol") || lowerTitle.contains("parkir") || lowerTitle.contains("transport") ->
+                    "rutinitas mobilitas yang tetep perlu dicek efisiensinya biar gak boncos di jalan"
+                lowerTitle.contains("skincare") || lowerTitle.contains("parfum") ->
+                    "glowing di luar tapi rekening kusam di dalam"
+                lowerNotes.contains("self-reward") || lowerNotes.contains("healing") ->
+                    "kedok self-reward padahal aslinya impulsif boncos"
+                lowerNotes.contains("diskon") || lowerNotes.contains("promo") || lowerNotes.contains("sale") ->
+                    "tergoda gimmick diskon yang tetep aja nguras duit"
+                lowerNotes.contains("iseng") || lowerNotes.contains("khilaf") ->
+                    "kebiasaan impulsif yang terus diulang tanpa rasa bersalah"
+                else -> null
+            }
+
             if (notableTx.notes.isNotBlank()) {
-                " Apalagi ada transaksi '$safeTitle' ($formattedAmount) dengan catatan '${notableTx.notes}', bikin makin geleng-geleng kepala."
+                val roastSnippet = if (habitRoast != null) " ($habitRoast)" else ""
+                " Apalagi ada transaksi '$safeTitle' ($formattedAmount) dengan catatan '${notableTx.notes}', bikin makin geleng-geleng kepala$roastSnippet."
             } else {
-                " Transaksi '$safeTitle' tembus $formattedAmount juga nyumbang bikin dompet makin tipis."
+                val roastSnippet = if (habitRoast != null) " ($habitRoast)" else ""
+                " Transaksi '$safeTitle' tembus $formattedAmount juga nyumbang bikin dompet makin tipis$roastSnippet."
             }
         } else {
             ""
@@ -469,9 +512,24 @@ object AiInsightService {
             ""
         }
 
+        val emergencyAdvice = when {
+            topCategoryName.contains("makan", ignoreCase = true) || topCategoryName.contains("kuliner", ignoreCase = true) ->
+                "Rem darurat jajan lu hari ini juga sebelum kas sekarat total!"
+            topCategoryName.contains("belanja", ignoreCase = true) || topCategoryName.contains("shop", ignoreCase = true) ->
+                "Setop checkout keranjang belanja hari ini juga sebelum kas sekarat total!"
+            topCategoryName.contains("hiburan", ignoreCase = true) || topCategoryName.contains("game", ignoreCase = true) ->
+                "Cut langganan dan hiburan gak penting hari ini juga sebelum kas sekarat total!"
+            topCategoryName.contains("elektronik", ignoreCase = true) || topCategoryName.contains("gadget", ignoreCase = true) ->
+                "Tahan nafsu upgrade gear teknologi sebelum kas sekarat total!"
+            topCategoryName.contains("transport", ignoreCase = true) ->
+                "Batasi mobilitas hedon dan tarif ojol sebelum kas sekarat total!"
+            else ->
+                "Rem darurat pengeluaran sekunder hari ini juga sebelum kas sekarat total!"
+        }
+
         return when {
             totalIncome <= 0 && totalExpense > 0 -> {
-                "Waduh Bos, kamu boncos Rp ${rupiahFormat.format(totalExpense.toLong())} di $periodTitle padahal pemasukan masih nol melompong! Kategori '$topCategoryName' nembus Rp ${rupiahFormat.format(topCategoryAmount.toLong())}, $categoryRoast$txQuote$budgetJebolNotice$accountWarning Rem darurat jajan lu hari ini juga sebelum kas sekarat total!"
+                "Waduh Bos, kamu boncos Rp ${rupiahFormat.format(totalExpense.toLong())} di $periodTitle padahal pemasukan masih nol melompong! Kategori '$topCategoryName' nembus Rp ${rupiahFormat.format(topCategoryAmount.toLong())}, $categoryRoast$txQuote$budgetJebolNotice$accountWarning $emergencyAdvice"
             }
             totalIncome > 0 && totalExpense > totalIncome -> {
                 "Defisit parah, Bos! Pengeluaranmu tembus Rp ${rupiahFormat.format(totalExpense.toLong())} numpahin pemasukan sampai minus Rp ${rupiahFormat.format((-netSavings).toLong())}. Kategori '$topCategoryName' (Rp ${rupiahFormat.format(topCategoryAmount.toLong())}) jadi biang keroknya, $categoryRoast$txQuote$budgetJebolNotice$accountWarning Pangkas pengeluaran sekunder detik ini juga, jangan sok sultan!"

@@ -18,6 +18,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sena.financetracker.ui.dashboard.components.settings.GroqApiKeySettingsCard
 import com.sena.financetracker.ui.dashboard.components.settings.HapticSettingsCard
 import com.sena.financetracker.ui.dashboard.components.settings.SettingsNavigationCard
 import com.sena.financetracker.ui.dashboard.components.settings.SettingsResetDataCard
@@ -40,6 +41,9 @@ fun SettingsScreen(
     onNavigateToImport: () -> Unit,
     onResetTransactions: () -> Unit,
     onToggleHaptic: (Boolean) -> Unit = {},
+    onSaveGroqApiKey: (String) -> Unit = {},
+    onClearGroqApiKey: () -> Unit = {},
+    hasApiKey: Boolean = uiState.hasApiKey,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -124,6 +128,29 @@ fun SettingsScreen(
             HapticSettingsCard(
                 isHapticEnabled = uiState.isHapticEnabled,
                 onToggleHaptic = onToggleHaptic
+            )
+        }
+
+        // Section: Integrasi AI & Pak Hemat
+        item {
+            Text(
+                text = "KECERDASAN BUATAN & ANALITIK",
+                style = TextStyle(
+                    fontWeight = FontWeight.Black,
+                    fontSize = 12.sp,
+                    letterSpacing = 1.5.sp,
+                    color = Color.Black
+                ),
+                modifier = Modifier.padding(top = 12.dp)
+            )
+        }
+
+        // Kartu Neobrutal: Konfigurasi Groq API Key
+        item {
+            GroqApiKeySettingsCard(
+                hasApiKey = hasApiKey,
+                onSaveApiKey = onSaveGroqApiKey,
+                onClearApiKey = onClearGroqApiKey
             )
         }
 

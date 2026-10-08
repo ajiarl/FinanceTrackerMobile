@@ -129,6 +129,35 @@ class ApiKeyStorageTest {
     }
 
     @Test
+    fun getMaskedGroqApiKey_masksKeySafelyWithoutExposingSecret() {
+        val fullKey = "gsk_prod_secure_token_123456789"
+        ApiKeyStorage.setGroqApiKey(mockContext, fullKey)
+
+        val masked = ApiKeyStorage.getMaskedGroqApiKey(mockContext)
+        assertEquals("gsk_••••••••6789", masked)
+        assertFalse("Masked key dilarang membocorkan raw key", masked.contains("secure_token"))
+
+        // Pengujian untuk key pendek (<= 8 karakter)
+        ApiKeyStorage.setGroqApiKey(mockContext, "12345678")
+        assertEquals("••••••••", ApiKeyStorage.getMaskedGroqApiKey(mockContext))
+
+        // Pengujian untuk key kosong
+        ApiKeyStorage.clearGroqApiKey(mockContext)
+        assertEquals("", ApiKeyStorage.getMaskedGroqApiKey(mockContext))
+    }
+
+    @Test
+    fun nonContextKeyOperations_managesInMemoryKeyCorrectly() {
+        ApiKeyStorage.setGroqApiKey("gsk_direct_key_test_9876")
+        assertTrue(ApiKeyStorage.hasCustomApiKey())
+        assertEquals("gsk_••••••••9876", ApiKeyStorage.getMaskedGroqApiKey())
+
+        ApiKeyStorage.clearGroqApiKey()
+        assertFalse(ApiKeyStorage.hasCustomApiKey())
+        assertEquals("", ApiKeyStorage.getMaskedGroqApiKey())
+    }
+
+    @Test
     fun inMemoryApiKey_fallbackWhenContextNotProvided() {
         val sessionKey = "gsk_session_override_token"
         ApiKeyStorage.setInMemoryApiKey(sessionKey)

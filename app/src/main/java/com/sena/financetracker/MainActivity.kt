@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
         val repository = TransactionRepository(appDatabase, prefs)
         val viewModel = ViewModelProvider(
             this,
-            FinanceViewModel.Factory(repository)
+            FinanceViewModel.Factory(repository, applicationContext)
         )[FinanceViewModel::class.java]
 
         setContent {

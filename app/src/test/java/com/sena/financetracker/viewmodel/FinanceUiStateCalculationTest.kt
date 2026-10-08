@@ -92,4 +92,19 @@ class FinanceUiStateCalculationTest {
 
         assertEquals(false, state.isHapticEnabled)
     }
+
+    @Test
+    fun testCalculateFinanceTotalsWithHasApiKeyFlag() {
+        val stateWithKey = calculateFinanceTotals(
+            transactions = emptyList(),
+            hasApiKey = true
+        )
+        assertEquals(true, stateWithKey.hasApiKey)
+
+        val stateWithoutKey = calculateFinanceTotals(
+            transactions = emptyList(),
+            hasApiKey = false
+        )
+        assertEquals(false, stateWithoutKey.hasApiKey)
+    }
 }
