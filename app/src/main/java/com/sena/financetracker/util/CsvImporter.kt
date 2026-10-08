@@ -227,56 +227,113 @@ object CsvImporter {
      * Menangani simbol mata uang (Rp, IDR, $), pemisah ribuan (titik atau koma),
      * dan format angka desimal.
      */
+    /**
+     * Membersihkan dan mem-parsing string nominal dari berkas CSV menjadi nilai [Double] yang valid.
+     *
+     * Mitigasi DAT-08:
+     * - Menangani secara andal variasi pemisah ribuan (titik atau koma atau spasi) dan desimal.
+     * - Mendukung berbagai prefiks/simbol mata uang ("Rp.", "Rp", "IDR.", "IDR", "$", "€", "£", "¥", dll).
+     * - Mencegah bug pemangkasan "Rp." yang sebelumnya menyisakan titik terdepan dan merusak skala digit.
+     * - Menghilangkan akhiran khas Indonesia untuk nominal bulat (misal: "50.000,-" atau "50.000,--").
+     * - Menghilangkan karakter pembungkus CSV formula injection (petik tunggal `'`, petik dua `"`).
+     * - Menghasilkan nilai absolut nominal terbulatkan melalui [CurrencyMath.roundCurrency] tanpa NaN atau Infinity.
+     *
+     * @param raw Nilai nominal mentah dari baris CSV.
+     * @return Nilai [Double] positif yang valid, atau `null` jika tidak dapat diparsing.
+     */
     fun sanitizeAmount(raw: String): Double? {
         if (raw.isBlank()) return null
 
         var cleaned = raw.trim()
-            .replace("Rp", "", ignoreCase = true)
-            .replace("IDR", "", ignoreCase = true)
-            .replace("$", "")
-            .replace(" ", "")
 
-        // Tangani tanda minus atau kurung kredit misal (50000)
-        if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
-            cleaned = cleaned.substring(1, cleaned.length - 1)
+        // 1. Bersihkan formula escape atau tanda petik pembungkus CSV (misal: '+50000, '150000, "50000")
+        while (cleaned.startsWith("'") || cleaned.startsWith("\"") || cleaned.startsWith("“") || cleaned.startsWith("”")) {
+            cleaned = cleaned.substring(1).trim()
         }
-        cleaned = cleaned.replace("-", "")
+        while (cleaned.endsWith("'") || cleaned.endsWith("\"") || cleaned.endsWith("“") || cleaned.endsWith("”")) {
+            cleaned = cleaned.substring(0, cleaned.length - 1).trim()
+        }
+
+        // 2. Tangani tanda minus atau kurung kredit akuntansi misal (50000) atau (Rp 50.000)
+        if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
+            cleaned = cleaned.substring(1, cleaned.length - 1).trim()
+        }
+
+        // 3. Bersihkan akhiran khas Indonesia untuk nominal bulat (misal: "50.000,-" atau "50.000,--")
+        cleaned = cleaned.replace("[,.]\\s*-+".toRegex(), "")
+
+        // 4. Bersihkan simbol dan kode mata uang (Rp., Rp, IDR., IDR, $, USD, EUR, €, GBP, £, JPY, ¥, dll)
+        cleaned = cleaned.replace("(?i)\\b(rp|idr|usd|eur|gbp|jpy|sgd|myr)\\b\\.?".toRegex(), "")
+        cleaned = cleaned.replace("(?i)rp\\.?".toRegex(), "")
+        cleaned = cleaned.replace("(?i)idr\\.?".toRegex(), "")
+        cleaned = cleaned.replace("[$€£¥₩]".toRegex(), "")
+
+        // 5. Bersihkan semua karakter whitespace (termasuk spasi biasa, non-breaking space \u00A0, \u202F, tab)
+        cleaned = cleaned.replace("\\s+".toRegex(), "")
+
+        // 6. Tangani tanda plus/minus terdepan atau terbelakang
+        cleaned = cleaned.trim('-', '+')
 
         if (cleaned.isEmpty()) return null
 
-        // Cek pola pemisah ribuan dan desimal:
-        // Pola Indo/Eropa: 50.000,50 atau 50.000
-        // Pola US: 50,000.50 atau 50,000
+        // 7. Jika hanya berupa karakter tidak valid (huruf/simbol selain digit, titik, koma), return null
+        if (!cleaned.matches("[0-9.,]+".toRegex())) {
+            return null
+        }
+
         return try {
-            if (cleaned.contains(",") && cleaned.contains(".")) {
+            val normalized = if (cleaned.contains(",") && cleaned.contains(".")) {
                 val lastComma = cleaned.lastIndexOf(',')
                 val lastDot = cleaned.lastIndexOf('.')
                 if (lastComma > lastDot) {
-                    // Koma adalah pemisah desimal (misal 50.000,00)
-                    cleaned = cleaned.replace(".", "").replace(",", ".")
+                    // Format Indonesia/Eropa: 1.000.000,50 -> titik adalah ribuan, koma adalah desimal
+                    cleaned.replace(".", "").replace(",", ".")
                 } else {
-                    // Titik adalah pemisah desimal (misal 50,000.00)
-                    cleaned = cleaned.replace(",", "")
+                    // Format US/UK: 1,000,000.50 -> koma adalah ribuan, titik adalah desimal
+                    cleaned.replace(",", "")
                 }
             } else if (cleaned.contains(",")) {
-                // Hanya koma: jika koma diikuti 1-2 digit di akhir dan panjangnya <= 2 (misal 50,5 atau 50,50)
                 val parts = cleaned.split(",")
-                if (parts.size == 2 && parts[1].length in 1..2) {
-                    cleaned = cleaned.replace(",", ".")
+                if (parts.size > 2) {
+                    // Multiple koma: pemisah ribuan (1,000,000)
+                    cleaned.replace(",", "")
                 } else {
-                    // Koma adalah pemisah ribuan
-                    cleaned = cleaned.replace(",", "")
+                    // Single koma (parts.size == 2)
+                    val intPart = parts[0]
+                    val decPart = parts[1]
+                    if (intPart.isNotEmpty() && intPart != "0" && intPart.length in 1..3 && decPart.length == 3) {
+                        // Pola ribuan murni misal 1,000 atau 50,000
+                        cleaned.replace(",", "")
+                    } else {
+                        // Pola desimal misal 50,5 atau 50,50 atau 0,500 atau 1000000,50
+                        cleaned.replace(",", ".")
+                    }
                 }
             } else if (cleaned.contains(".")) {
-                // Hanya titik: jika bagian setelah titik ada 3 digit (misal 50.000), ini kemungkinan ribuan
                 val parts = cleaned.split(".")
-                if (parts.size > 2 || (parts.size == 2 && parts[1].length == 3)) {
-                    cleaned = cleaned.replace(".", "")
+                if (parts.size > 2) {
+                    // Multiple titik: pemisah ribuan (1.000.000)
+                    cleaned.replace(".", "")
+                } else {
+                    // Single titik (parts.size == 2)
+                    val intPart = parts[0]
+                    val decPart = parts[1]
+                    if (intPart.isNotEmpty() && intPart != "0" && intPart.length in 1..3 && decPart.length == 3) {
+                        // Pola ribuan murni misal 1.000 atau 50.000
+                        cleaned.replace(".", "")
+                    } else {
+                        // Pola desimal misal 50.5 atau 50.50 atau 0.500 atau 1000000.50
+                        cleaned
+                    }
                 }
-                // Jika parts[1].length 1-2, biarkan sebagai desimal
+            } else {
+                cleaned
             }
 
-            cleaned.toDoubleOrNull()
+            val parsedValue = normalized.toDoubleOrNull() ?: return null
+            if (parsedValue.isNaN() || parsedValue.isInfinite()) return null
+
+            CurrencyMath.roundCurrency(kotlin.math.abs(parsedValue))
         } catch (e: Exception) {
             android.util.Log.w("FinanceTracker", "Gagal parse amount dari CSV string: $raw", e)
             null

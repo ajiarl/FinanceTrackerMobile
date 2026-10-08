@@ -3,7 +3,12 @@ package com.sena.financetracker.util
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.TransactionEntity
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -148,5 +153,50 @@ class CsvExporterTest {
         assertTrue(lines[1].contains("'=CMD|' /C calc'!A0"))
         assertTrue(lines[1].contains("'@AdminAction"))
         assertTrue(lines[1].contains("'+628123456789"))
+    }
+
+    @Test
+    fun testIsActivityContextDetection() {
+        val dummyActivity = object : Activity() {}
+        val dummyContext = object : ContextWrapper(dummyActivity) {
+            override fun getBaseContext(): Context = dummyActivity
+        }
+        val nonActivityContext = object : ContextWrapper(null) {
+            override fun getBaseContext(): Context? = null
+        }
+
+        assertTrue(CsvExporter.isActivityContext(dummyActivity))
+        assertTrue(CsvExporter.isActivityContext(dummyContext))
+        assertFalse(CsvExporter.isActivityContext(nonActivityContext))
+        assertFalse(CsvExporter.isActivityContext(null))
+    }
+
+    @Test
+    fun testCalculateChooserFlagsOmitsNewTaskFlagForActivityContext() {
+        val dummyActivity = object : Activity() {}
+        val flags = CsvExporter.calculateChooserFlags(dummyActivity)
+
+        // Verifikasi mitigasi SEC-04: FLAG_ACTIVITY_NEW_TASK TIDAK boleh disertakan pada context Activity
+        val hasNewTask = (flags and Intent.FLAG_ACTIVITY_NEW_TASK) != 0
+        assertFalse("Flags chooser tidak boleh memiliki FLAG_ACTIVITY_NEW_TASK pada context Activity", hasNewTask)
+
+        // Verifikasi FLAG_GRANT_READ_URI_PERMISSION tetap aktif
+        val hasGrantUri = (flags and Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0
+        assertTrue("Flags chooser harus mempertahankan FLAG_GRANT_READ_URI_PERMISSION", hasGrantUri)
+    }
+
+    @Test
+    fun testCalculateChooserFlagsAddsNewTaskFlagForNonActivityContext() {
+        val nonActivityContext = object : ContextWrapper(null) {
+            override fun getBaseContext(): Context? = null
+        }
+        val flags = CsvExporter.calculateChooserFlags(nonActivityContext)
+
+        // Pada non-Activity context (seperti ApplicationContext), FLAG_ACTIVITY_NEW_TASK diperlukan agar tidak crash
+        val hasNewTask = (flags and Intent.FLAG_ACTIVITY_NEW_TASK) != 0
+        assertTrue("Flags chooser harus memiliki FLAG_ACTIVITY_NEW_TASK pada non-Activity context", hasNewTask)
+
+        val hasGrantUri = (flags and Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0
+        assertTrue("Flags chooser harus mempertahankan FLAG_GRANT_READ_URI_PERMISSION", hasGrantUri)
     }
 }

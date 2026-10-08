@@ -192,4 +192,75 @@ class TransactionFilterTest {
         assertEquals("TODAY", state.selectedDateFilter)
         assertEquals("EXPENSE", state.selectedFilterTab)
     }
+
+    @Test
+    fun testCategoryFilterCaseInsensitiveAndWhitespaceNormalized() {
+        val mixedCategoryTransactions = listOf(
+            TransactionEntity(id = 10, title = "Bakso", amount = 15000.0, type = "EXPENSE", category = "Makanan", date = "2026-10-07"),
+            TransactionEntity(id = 11, title = "Mie Ayam", amount = 20000.0, type = "EXPENSE", category = "makanan", date = "2026-10-07"),
+            TransactionEntity(id = 12, title = "Nasi Padang", amount = 25000.0, type = "EXPENSE", category = "  MAKANAN  ", date = "2026-10-07"),
+            TransactionEntity(id = 13, title = "Bensin", amount = 50000.0, type = "EXPENSE", category = "Transport", date = "2026-10-07")
+        )
+
+        // Filter dengan lowercase "makanan"
+        val lowerFilter = filterTransactions(
+            transactions = mixedCategoryTransactions,
+            categoryFilter = "makanan"
+        )
+        assertEquals(3, lowerFilter.size)
+        assertTrue(lowerFilter.all { it.category.trim().equals("makanan", ignoreCase = true) })
+
+        // Filter dengan uppercase "MAKANAN"
+        val upperFilter = filterTransactions(
+            transactions = mixedCategoryTransactions,
+            categoryFilter = "MAKANAN"
+        )
+        assertEquals(3, upperFilter.size)
+
+        // Filter dengan whitespace berlebih "  makanan  "
+        val spacedFilter = filterTransactions(
+            transactions = mixedCategoryTransactions,
+            categoryFilter = "   makanan   "
+        )
+        assertEquals(3, spacedFilter.size)
+
+        // Filter dengan "ALL" atau spasi kosong harus menampilkan seluruh data
+        val allFilter = filterTransactions(
+            transactions = mixedCategoryTransactions,
+            categoryFilter = "ALL"
+        )
+        assertEquals(4, allFilter.size)
+
+        val blankFilter = filterTransactions(
+            transactions = mixedCategoryTransactions,
+            categoryFilter = "   "
+        )
+        assertEquals(4, blankFilter.size)
+    }
+
+    @Test
+    fun testCalculateReportsAnalyticsGroupsCategoriesCaseInsensitiveAndTrimmed() {
+        val categories = listOf(
+            CategoryEntity(id = 1, name = "Makanan", type = "EXPENSE", color = "#FAFF00")
+        )
+        val transactions = listOf(
+            TransactionEntity(id = 1, title = "Soto", amount = 30000.0, type = "EXPENSE", category = "Makanan", date = "2026-10-01"),
+            TransactionEntity(id = 2, title = "Bakso", amount = 20000.0, type = "EXPENSE", category = "makanan", date = "2026-10-02"),
+            TransactionEntity(id = 3, title = "Nasi Goreng", amount = 10000.0, type = "EXPENSE", category = "  MAKANAN  ", date = "2026-10-03")
+        )
+
+        val analytics = calculateReportsAnalytics(
+            transactions = transactions,
+            categories = categories,
+            preset = "ALL_TIME"
+        )
+
+        // Verifikasi mitigasi DAT-07: Kategori "Makanan", "makanan", dan "  MAKANAN  "
+        // harus digabung menjadi 1 kelompok breakdown dengan total 60000.0
+        assertEquals(1, analytics.categoryBreakdown.size)
+        val breakdown = analytics.categoryBreakdown[0]
+        assertEquals(60000.0, breakdown.totalAmount, 0.001)
+        assertEquals(100, breakdown.percentage)
+        assertTrue(breakdown.category.trim().equals("Makanan", ignoreCase = true))
+    }
 }

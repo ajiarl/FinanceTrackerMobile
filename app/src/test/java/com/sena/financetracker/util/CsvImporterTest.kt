@@ -79,6 +79,58 @@ class CsvImporterTest {
     }
 
     @Test
+    fun sanitizeAmount_handlesVariedThousandAndDecimalFormatsAccurately() {
+        // Mitigasi DAT-08: Format Rp dengan titik (sebelumnya terpotong menjadi 0.5 karena "Rp.")
+        assertEquals(50000.0, CsvImporter.sanitizeAmount("Rp. 50000")!!, 0.001)
+        assertEquals(50000.0, CsvImporter.sanitizeAmount("Rp. 50.000")!!, 0.001)
+        assertEquals(1000000.5, CsvImporter.sanitizeAmount("Rp. 1.000.000,50")!!, 0.001)
+
+        // Akhiran sen bulat khas Indonesia (,- atau ,--)
+        assertEquals(50000.0, CsvImporter.sanitizeAmount("Rp 50.000,-")!!, 0.001)
+        assertEquals(50000.0, CsvImporter.sanitizeAmount("50000,-")!!, 0.001)
+        assertEquals(1500000.0, CsvImporter.sanitizeAmount("1.500.000,--")!!, 0.001)
+
+        // Variasi pemisah ribuan murni (titik dan koma multi-kelompok & miliaran)
+        assertEquals(1000000.0, CsvImporter.sanitizeAmount("1.000.000")!!, 0.001)
+        assertEquals(1000000000.0, CsvImporter.sanitizeAmount("1.000.000.000")!!, 0.001)
+        assertEquals(1000000.0, CsvImporter.sanitizeAmount("1,000,000")!!, 0.001)
+        assertEquals(1000000000.0, CsvImporter.sanitizeAmount("1,000,000,000")!!, 0.001)
+
+        // Pemisah spasi standar akuntansi internasional (1 000 000)
+        assertEquals(1000000.0, CsvImporter.sanitizeAmount("1 000 000")!!, 0.001)
+        assertEquals(1000000.5, CsvImporter.sanitizeAmount("1 000 000,50")!!, 0.001)
+        assertEquals(1000000.5, CsvImporter.sanitizeAmount("1 000 000.50")!!, 0.001)
+
+        // Berbagai simbol mata uang asing dan kode IDR
+        assertEquals(50000.0, CsvImporter.sanitizeAmount("IDR 50.000")!!, 0.001)
+        assertEquals(50000.0, CsvImporter.sanitizeAmount("IDR. 50000")!!, 0.001)
+        assertEquals(1500.5, CsvImporter.sanitizeAmount("$ 1,500.50")!!, 0.001)
+        assertEquals(2500.25, CsvImporter.sanitizeAmount("€ 2.500,25")!!, 0.001)
+        assertEquals(50000.0, CsvImporter.sanitizeAmount("¥ 50,000")!!, 0.001)
+
+        // Format CSV hasil mitigasi Formula Injection (diawali kutip ')
+        assertEquals(50000.0, CsvImporter.sanitizeAmount("'+50.000")!!, 0.001)
+        assertEquals(1000000.0, CsvImporter.sanitizeAmount("'-1.000.000")!!, 0.001)
+        assertEquals(50000.0, CsvImporter.sanitizeAmount("'50000")!!, 0.001)
+
+        // Desimal murni dan angka kecil
+        assertEquals(0.5, CsvImporter.sanitizeAmount("0,5")!!, 0.001)
+        assertEquals(0.5, CsvImporter.sanitizeAmount("0.5")!!, 0.001)
+        assertEquals(0.75, CsvImporter.sanitizeAmount("0,75")!!, 0.001)
+        assertEquals(0.75, CsvImporter.sanitizeAmount("0.75")!!, 0.001)
+        assertEquals(1000.0, CsvImporter.sanitizeAmount("1000.00")!!, 0.001)
+        assertEquals(1000.0, CsvImporter.sanitizeAmount("1000,00")!!, 0.001)
+        assertEquals(1000.5, CsvImporter.sanitizeAmount("1000.5")!!, 0.001)
+        assertEquals(1000.5, CsvImporter.sanitizeAmount("1000,5")!!, 0.001)
+
+        // Input tidak valid
+        assertNull(CsvImporter.sanitizeAmount("   "))
+        assertNull(CsvImporter.sanitizeAmount("Rp. "))
+        assertNull(CsvImporter.sanitizeAmount("NaN"))
+        assertNull(CsvImporter.sanitizeAmount("Infinity"))
+    }
+
+    @Test
     fun normalizeDate_convertsVariousFormatsToIso() {
         assertEquals("2026-03-15", CsvImporter.normalizeDate("2026-03-15"))
         assertEquals("2026-03-15", CsvImporter.normalizeDate("15/03/2026"))

@@ -146,10 +146,10 @@ fun filterTransactions(
         }
 
         // 3. Category Filter
-        val matchesCategory = if (categoryFilter.isNullOrBlank() || categoryFilter.equals("ALL", ignoreCase = true)) {
+        val matchesCategory = if (categoryFilter.isNullOrBlank() || categoryFilter.trim().equals("ALL", ignoreCase = true)) {
             true
         } else {
-            tx.category.equals(categoryFilter, ignoreCase = true)
+            tx.category.trim().equals(categoryFilter.trim(), ignoreCase = true)
         }
 
         // 4. Date Filter
@@ -236,22 +236,24 @@ fun calculateReportsAnalytics(
     }
 
     // 2. Breakdown Pengeluaran per Kategori
-    val categoryColorMap = categories.associate { it.name.lowercase() to it.color }
+    val categoryColorMap = categories.associate { it.name.trim().lowercase(Locale.ROOT) to it.color }
     val defaultColors = listOf("#F97316", "#3B82F6", "#EC4899", "#8B5CF6", "#10B981", "#EAB308", "#64748B")
 
     val expenseTransactions = periodTransactions.filter { it.type.equals("EXPENSE", ignoreCase = true) }
-    val groupedByCategory = expenseTransactions.groupBy { it.category }
+    // Normalisasi case-insensitive & whitespace pada kategori pengeluaran
+    val groupedByCategory = expenseTransactions.groupBy { it.category.trim().lowercase(Locale.ROOT) }
 
-    val categoryBreakdown = groupedByCategory.map { (catName, txList) ->
+    val categoryBreakdown = groupedByCategory.map { (lowerCatName, txList) ->
         val totalCatAmount = txList.sumOf { it.amount }
         val pct = if (periodExpense > 0) {
             ((totalCatAmount / periodExpense) * 100).toInt()
         } else {
             0
         }
-        val col = categoryColorMap[catName.lowercase()] ?: defaultColors[Math.abs(catName.hashCode()) % defaultColors.size]
+        val displayName = txList.firstOrNull()?.category?.trim()?.ifBlank { "Lainnya" } ?: "Lainnya"
+        val col = categoryColorMap[lowerCatName] ?: defaultColors[Math.abs(displayName.hashCode()) % defaultColors.size]
         CategoryBreakdownItem(
-            category = catName,
+            category = displayName,
             totalAmount = totalCatAmount,
             percentage = pct,
             color = col

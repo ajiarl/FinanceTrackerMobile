@@ -38,7 +38,7 @@ class BudgetDomainHandler(
                     transactions
                         .filter { tx ->
                             tx.type.equals("EXPENSE", ignoreCase = true) &&
-                            tx.category.equals(budget.category, ignoreCase = true) &&
+                            tx.category.trim().equals(budget.category.trim(), ignoreCase = true) &&
                             tx.date.startsWith(period)
                         }
                         .sumOf { it.amount }
@@ -103,7 +103,7 @@ class BudgetDomainHandler(
         val matchingBudgets = allBudgets.filter { budget ->
             budget.isActive &&
             (budget.period.isEmpty() || budget.period == period) &&
-            budget.category.equals(transaction.category, ignoreCase = true)
+            budget.category.trim().equals(transaction.category.trim(), ignoreCase = true)
         }
 
         if (matchingBudgets.isEmpty()) return
@@ -113,7 +113,7 @@ class BudgetDomainHandler(
             allTransactions
                 .filter { tx ->
                     tx.type.equals("EXPENSE", ignoreCase = true) &&
-                    tx.category.equals(transaction.category, ignoreCase = true) &&
+                    tx.category.trim().equals(transaction.category.trim(), ignoreCase = true) &&
                     tx.date.startsWith(period)
                 }
                 .sumOf { it.amount }

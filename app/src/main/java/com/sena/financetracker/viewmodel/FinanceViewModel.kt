@@ -272,9 +272,11 @@ class FinanceViewModel(
 
     /**
      * Memperbarui filter kategori aktif (atau null untuk semua kategori).
+     *
+     * Mitigasi DAT-07: Melakukan normalisasi whitespace dengan memotong spasi depan/belakang.
      */
     fun setSelectedCategoryFilter(category: String?) {
-        _selectedCategoryFilter.value = category
+        _selectedCategoryFilter.value = category?.trim()
     }
 
     // ── NOTIFICATIONS ACTIONS ──────────────────────────────────────────────────

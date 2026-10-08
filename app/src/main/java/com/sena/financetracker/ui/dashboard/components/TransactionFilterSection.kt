@@ -110,12 +110,12 @@ fun TransactionCategoryChips(
             onClick = { onCategorySelected(null) }
         )
         categories.forEach { cat ->
-            val isSelected = selectedCategory?.equals(cat.name, ignoreCase = true) == true
+            val isSelected = selectedCategory?.trim()?.equals(cat.name.trim(), ignoreCase = true) == true
             NeobrutalFilterChip(
                 label = cat.name.uppercase(),
                 isSelected = isSelected,
                 selectedBg = RetroYellow,
-                onClick = { onCategorySelected(if (isSelected) null else cat.name) }
+                onClick = { onCategorySelected(if (isSelected) null else cat.name.trim()) }
             )
         }
     }

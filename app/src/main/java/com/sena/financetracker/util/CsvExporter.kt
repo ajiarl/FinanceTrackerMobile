@@ -145,11 +145,84 @@ object CsvExporter {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
 
-        val chooser = Intent.createChooser(shareIntent, "Bagikan / Simpan Laporan CSV").apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
+        val chooser = createChooserIntent(context, shareIntent, "Bagikan / Simpan Laporan CSV")
         context.startActivity(chooser)
 
         return targetFile
+    }
+
+    /**
+     * Menghitung bitmask flags yang aman untuk Intent Chooser berdasarkan konteks pemanggil.
+     *
+     * Mitigasi SEC-04:
+     * - Pada konteks [Activity], [Intent.FLAG_ACTIVITY_NEW_TASK] TIDAK disertakan untuk mencegah
+     *   window / task hijacking dan anomali navigasi back-stack.
+     * - Pada konteks non-Activity (misal Application Context), [Intent.FLAG_ACTIVITY_NEW_TASK]
+     *   disertakan agar pemanggilan startActivity tidak melempar crash.
+     * - Flag [Intent.FLAG_GRANT_READ_URI_PERMISSION] selalu disertakan.
+     *
+     * @param context Konteks Android pemanggil.
+     * @return Bitmask flags yang aman.
+     */
+    fun calculateChooserFlags(context: Context): Int {
+        var flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+        if (!isActivityContext(context)) {
+            flags = flags or Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        return flags
+    }
+
+    /**
+     * Membangun Intent Chooser untuk berbagi dokumen atau berkas CSV.
+     *
+     * Mitigasi SEC-04:
+     * - Menetapkan flags aman melalui [calculateChooserFlags].
+     *
+     * @param context Context Android aktif pemanggil.
+     * @param targetIntent Intent target yang akan dibungkus chooser (misal ACTION_SEND).
+     * @param chooserTitle Judul dialog pemilih aplikasi (chooser).
+     * @return Intent chooser yang telah dikonfigurasi secara aman.
+     */
+    fun createChooserIntent(
+        context: Context,
+        targetIntent: Intent,
+        chooserTitle: CharSequence = "Bagikan / Simpan Laporan CSV"
+    ): Intent {
+        val flags = calculateChooserFlags(context)
+        val chooser = (Intent.createChooser(targetIntent, chooserTitle) ?: Intent(Intent.ACTION_CHOOSER)).apply {
+            addFlags(flags)
+        }
+        return chooser
+    }
+
+    /**
+     * Memeriksa apakah [context] merupakan instance dari [android.app.Activity],
+     * termasuk jika terbungkus dalam hierarki [android.content.ContextWrapper].
+     *
+     * @param context Context yang akan diperiksa.
+     * @return `true` jika context adalah Activity, `false` jika bukan.
+     */
+    fun isActivityContext(context: Context?): Boolean {
+        if (context == null) return false
+        var current: Context? = context
+        val visited = HashSet<Context>()
+        while (current != null) {
+            if (current is android.app.Activity) {
+                return true
+            }
+            if (current is android.content.ContextWrapper) {
+                if (!visited.add(current)) break
+                val base = try {
+                    current.baseContext
+                } catch (e: Exception) {
+                    null
+                }
+                if (base == null || base == current) break
+                current = base
+            } else {
+                break
+            }
+        }
+        return current is android.app.Activity
     }
 }
