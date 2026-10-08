@@ -6,6 +6,8 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -102,7 +104,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         }
     }
 
-    private val dbScope = CoroutineScope(Dispatchers.IO)
+    private val dbScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _transactionsFlow = MutableStateFlow<List<TransactionEntity>>(emptyList())
     private val _accountsFlow = MutableStateFlow<List<AccountEntity>>(emptyList())
     private val _categoriesFlow = MutableStateFlow<List<CategoryEntity>>(emptyList())
@@ -876,5 +878,10 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             refreshNotificationsFlowInternal()
             Unit
         }
+    }
+
+    override fun close() {
+        super.close()
+        dbScope.cancel()
     }
 }

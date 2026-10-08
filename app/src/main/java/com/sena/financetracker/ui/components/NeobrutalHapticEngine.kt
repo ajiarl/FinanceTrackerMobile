@@ -38,7 +38,8 @@ object NeobrutalHapticEngine {
                 // Try predefined effect first
                 try {
                     vibrator.vibrate(VibrationEffect.createPredefined(effectId))
-                } catch (_: Throwable) {
+                } catch (e: Throwable) {
+                    android.util.Log.w("FinanceTracker", "Predefined vibration effect $effectId gagal, fallback ke one-shot", e)
                     // Fallback to one-shot effect if predefined not supported
                     vibrator.vibrate(VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE))
                 }
@@ -61,7 +62,8 @@ object NeobrutalHapticEngine {
             } else {
                 context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
             }
-        } catch (_: Throwable) {
+        } catch (e: Throwable) {
+            android.util.Log.e("FinanceTracker", "Gagal mendapatkan service Vibrator dari context", e)
             null
         }
     }

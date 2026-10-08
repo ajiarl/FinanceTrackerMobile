@@ -29,7 +29,8 @@ object SecurityConfig {
                 (maskedBytes[i].toInt() xor salt.toInt()).toByte()
             }
             String(decoded, Charsets.UTF_8).trim()
-        } catch (_: Throwable) {
+        } catch (e: Throwable) {
+            android.util.Log.e("FinanceTracker", "Gagal de-obfuscate masked key in-memory", e)
             ""
         }
     }

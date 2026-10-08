@@ -265,7 +265,8 @@ object CsvImporter {
             }
 
             cleaned.toDoubleOrNull()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.w("FinanceTracker", "Gagal parse amount dari CSV string: $raw", e)
             null
         }
     }
@@ -302,7 +303,7 @@ object CsvImporter {
                 if (date != null) {
                     return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(date)
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 // Coba dengan locale English
                 try {
                     val sdfEn = SimpleDateFormat(pattern, Locale.US)
@@ -311,7 +312,7 @@ object CsvImporter {
                     if (date != null) {
                         return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(date)
                     }
-                } catch (_: Exception) {
+                } catch (eEn: Exception) {
                     // Lanjut pola berikutnya
                 }
             }

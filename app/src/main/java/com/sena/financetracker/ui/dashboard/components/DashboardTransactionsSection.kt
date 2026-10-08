@@ -480,7 +480,8 @@ private fun formatNeobrutalDate(dateStr: String): String {
         } else {
             dateStr
         }
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        android.util.Log.e("FinanceTracker", "Gagal memformat tanggal transaksi: $dateStr", e)
         dateStr
     }
 }
