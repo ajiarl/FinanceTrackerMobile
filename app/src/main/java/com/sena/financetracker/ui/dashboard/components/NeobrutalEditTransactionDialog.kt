@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.sena.financetracker.R
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.TransactionEntity
@@ -179,8 +181,8 @@ fun NeobrutalEditTransactionDialog(
                                 .border(3.dp, Color.Black, RectangleShape)
                         ) {
                             val types = listOf(
-                                Triple("EXPENSE", "KELUAR", RetroExpenseRed),
-                                Triple("INCOME", "MASUK", RetroIncomeGreen),
+                                Triple("EXPENSE", stringResource(R.string.filter_type_expense), RetroExpenseRed),
+                                Triple("INCOME", stringResource(R.string.filter_type_income), RetroIncomeGreen),
                                 Triple("TRANSFER", "TRF", RetroTransferBlue)
                             )
                             types.forEachIndexed { index, (typeKey, typeLabel, activeColor) ->
@@ -287,7 +289,7 @@ fun NeobrutalEditTransactionDialog(
                         value = title,
                         onValueChange = { title = it },
                         label = "Deskripsi / Judul",
-                        placeholder = "Nama transaksi"
+                        placeholder = stringResource(R.string.placeholder_title)
                     )
 
                     // 4. Pilih Akun Rekening
@@ -410,7 +412,7 @@ fun NeobrutalEditTransactionDialog(
                         value = notes,
                         onValueChange = { notes = it },
                         label = "Catatan (Opsional)",
-                        placeholder = "Catatan tambahan..."
+                        placeholder = stringResource(R.string.placeholder_notes)
                     )
                 }
 

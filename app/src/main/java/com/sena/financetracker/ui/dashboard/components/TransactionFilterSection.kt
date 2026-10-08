@@ -20,10 +20,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sena.financetracker.R
 import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.ui.components.RetroYellow
 
@@ -33,12 +35,18 @@ fun TransactionFilterTabs(
     onTabSelected: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val tabOptions = listOf(
+        "ALL" to stringResource(R.string.filter_type_all),
+        "EXPENSE" to stringResource(R.string.filter_type_expense),
+        "INCOME" to stringResource(R.string.filter_type_income)
+    )
+
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        listOf("ALL" to "SEMUA", "EXPENSE" to "KELUAR", "INCOME" to "MASUK").forEach { (key, label) ->
+        tabOptions.forEach { (key, label) ->
             val isSelected = selectedTab.equals(key, ignoreCase = true)
             NeobrutalFilterChip(
                 label = label,
@@ -56,12 +64,18 @@ fun TransactionDateFilters(
     onFilterSelected: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val dateOptions = listOf(
+        "ALL" to stringResource(R.string.filter_date_all),
+        "TODAY" to stringResource(R.string.filter_date_today),
+        "THIS_MONTH" to stringResource(R.string.filter_date_month)
+    )
+
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        listOf("ALL" to "SEMUA WAKTU", "TODAY" to "HARI INI", "THIS_MONTH" to "BULAN INI").forEach { (key, label) ->
+        dateOptions.forEach { (key, label) ->
             val isSelected = selectedFilter.equals(key, ignoreCase = true)
             NeobrutalFilterChip(
                 label = label,

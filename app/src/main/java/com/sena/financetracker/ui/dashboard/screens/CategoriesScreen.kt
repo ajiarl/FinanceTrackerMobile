@@ -207,9 +207,9 @@ fun CategoriesScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val tabs = listOf(
-                    Triple("ALL", "SEMUA", Color.White),
-                    Triple("EXPENSE", "PENGELUARAN", RetroExpenseRed),
-                    Triple("INCOME", "PEMASUKAN", RetroIncomeGreen)
+                    Triple("ALL", stringResource(R.string.filter_type_all), Color.White),
+                    Triple("EXPENSE", stringResource(R.string.filter_type_expense), RetroExpenseRed),
+                    Triple("INCOME", stringResource(R.string.filter_type_income), RetroIncomeGreen)
                 )
 
                 tabs.forEach { (typeKey, label, accentColor) ->

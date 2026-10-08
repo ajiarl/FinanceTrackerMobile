@@ -36,4 +36,29 @@
     <string name="title_screen_notifications">PUSAT PESAN / NOTIFIKASI</string>
     <string name="title_screen_settings">PENGATURAN</string>
     <string name="title_screen_import_csv">IMPOR TRANSAKSI</string>
+
+    <!-- Filter Types -->
+    <string name="filter_type_all">SEMUA</string>
+    <string name="filter_type_expense">KELUAR</string>
+    <string name="filter_type_income">MASUK</string>
+
+    <!-- Filter Dates -->
+    <string name="filter_date_all">SEMUA</string>
+    <string name="filter_date_today">HARI INI</string>
+    <string name="filter_date_week">MINGGU INI</string>
+    <string name="filter_date_month">BULAN INI</string>
+    <string name="filter_date_year">TAHUN INI</string>
+
+    <!-- Action & Form Dialogs -->
+    <string name="action_transfer">Transfer Dana</string>
+    <string name="action_reconcile">Rekonsiliasi Saldo</string>
+    <string name="action_add_budget">Tambah Anggaran</string>
+    <string name="action_add_account">Tambah Akun</string>
+    <string name="action_load_more">MUAT LEBIH BANYAK</string>
+
+    <!-- Placeholders -->
+    <string name="placeholder_title">Judul transaksi...</string>
+    <string name="placeholder_amount">Nominal (Rp)...</string>
+    <string name="placeholder_notes">Catatan opsional...</string>
+    <string name="placeholder_search">Cari transaksi atau kategori...</string>
 </resources>

@@ -182,8 +182,8 @@ fun NeobrutalFastAddDialog(
                                 .border(3.dp, Color.Black, RectangleShape)
                         ) {
                             val types = listOf(
-                                Triple("EXPENSE", "KELUAR", RetroExpenseRed),
-                                Triple("INCOME", "MASUK", RetroIncomeGreen),
+                                Triple("EXPENSE", stringResource(R.string.filter_type_expense), RetroExpenseRed),
+                                Triple("INCOME", stringResource(R.string.filter_type_income), RetroIncomeGreen),
                                 Triple("TRANSFER", "TRF", RetroTransferBlue)
                             )
                             types.forEachIndexed { index, (typeKey, typeLabel, activeColor) ->
@@ -291,7 +291,7 @@ fun NeobrutalFastAddDialog(
                         value = title,
                         onValueChange = { title = it },
                         label = "Deskripsi / Judul",
-                        placeholder = if (selectedType == "EXPENSE") "Makan siang, bensin, dll" else "Gaji bulanan, transfer, dll"
+                        placeholder = stringResource(R.string.placeholder_title)
                     )
 
                     // 4. Account Selection (Chips with border 2.dp & hard shadow)
@@ -450,7 +450,7 @@ fun NeobrutalFastAddDialog(
                         value = notes,
                         onValueChange = { notes = it },
                         label = "Catatan (Opsional)",
-                        placeholder = "Catatan tambahan..."
+                        placeholder = stringResource(R.string.placeholder_notes)
                     )
                 }
 
