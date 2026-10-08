@@ -189,6 +189,15 @@ fun FinanceDashboardContent(
     var transactionToDelete by remember { mutableStateOf<TransactionEntity?>(null) }
     var budgetToDelete by remember { mutableStateOf<BudgetProgressItem?>(null) }
 
+    val isAnyDialogOpen = showAddDialog ||
+        showTransferDialog ||
+        showAddAccountDialog ||
+        reconcilingAccount != null ||
+        showAddBudgetDialog ||
+        editingTransaction != null ||
+        transactionToDelete != null ||
+        budgetToDelete != null
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Dashboard.route
 
@@ -216,11 +225,13 @@ fun FinanceDashboardContent(
                 }
             },
             floatingActionButton = {
-                val context = androidx.compose.ui.platform.LocalContext.current
-                DashboardFab(onClick = {
-                    com.sena.financetracker.ui.components.NeobrutalHapticEngine.heavyClick(context, uiState.isHapticEnabled)
-                    showAddDialog = true
-                })
+                if (!isAnyDialogOpen) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    DashboardFab(onClick = {
+                        com.sena.financetracker.ui.components.NeobrutalHapticEngine.heavyClick(context, uiState.isHapticEnabled)
+                        showAddDialog = true
+                    })
+                }
             },
             floatingActionButtonPosition = FabPosition.End
         ) { innerPadding ->

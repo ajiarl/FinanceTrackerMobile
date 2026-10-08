@@ -35,7 +35,7 @@ fun ReportsScreen(
         modifier = modifier
             .fillMaxSize()
             .background(RetroCanvas),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 80.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Header & Period Preset Filter + Export Button

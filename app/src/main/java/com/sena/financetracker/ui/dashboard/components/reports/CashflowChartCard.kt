@@ -38,8 +38,10 @@ import kotlin.math.max
  * Komponen kartu grafik arus kas (Cashflow) bulanan dengan gaya Neobrutalisme.
  *
  * Menampilkan perbandingan pemasukan (income) dan pengeluaran (expense) dalam bentuk diagram
- * batang bersebelahan, dilengkapi dengan garis batas maksimum (horizontal dashed gridline),
- * indikator teks skala tertinggi (safeMax), serta label nominal ringkas di atas setiap batang.
+ * batang bersebelahan, dilengkapi dengan header bertumpuk anti-truncation (judul di atas dan
+ * legenda di bawah), garis batas maksimum (horizontal dashed gridline), indikator teks skala
+ * tertinggi (safeMax), serta label nominal ringkas dengan algoritma deteksi dan penghindaran tabrakan
+ * (smart collision detection & vertical staggering) agar teks angka tidak bertumpuk/kabur.
  *
  * @param cashflowBars Daftar data batang arus kas ([CashflowBarItem]) per bulan/periode.
  */
@@ -61,10 +63,9 @@ fun CashflowChartCard(
                 .border(3.dp, Color.Black, RectangleShape)
                 .padding(16.dp)
         ) {
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     text = "ARUS KAS MASUK VS KELUAR",
@@ -77,8 +78,15 @@ fun CashflowChartCard(
                 )
 
                 // Legend
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         Box(
                             modifier = Modifier
                                 .size(10.dp)
@@ -86,11 +94,18 @@ fun CashflowChartCard(
                                 .border(1.dp, Color.Black, RectangleShape)
                         )
                         Text(
-                            text = " Masuk",
-                            style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            text = "Masuk",
+                            style = TextStyle(
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
                         )
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         Box(
                             modifier = Modifier
                                 .size(10.dp)
@@ -98,8 +113,12 @@ fun CashflowChartCard(
                                 .border(1.dp, Color.Black, RectangleShape)
                         )
                         Text(
-                            text = " Keluar",
-                            style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            text = "Keluar",
+                            style = TextStyle(
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
                         )
                     }
                 }
@@ -138,18 +157,18 @@ fun CashflowChartCard(
                         val canvasWidth = size.width
                         val bottomLabelHeight = 24.dp.toPx() // sisakan tempat untuk label bawah
                         val canvasHeight = size.height - bottomLabelHeight
-                        val topLabelPadding = 20.dp.toPx() // ruang atas agar teks nominal tidak terpotong (clip)
+                        val topLabelPadding = 24.dp.toPx() // ruang atas agar teks nominal dan gridline tidak terpotong (clip)
                         val maxBarHeight = (canvasHeight - topLabelPadding).coerceAtLeast(10f)
 
                         val barGroupCount = cashflowBars.size
                         val groupWidth = canvasWidth / barGroupCount
-                        val barWidth = 14.dp.toPx()
-                        val barSpacing = 4.dp.toPx()
+                        val barWidth = 13.dp.toPx()
+                        val barSpacing = 6.dp.toPx()
 
                         // Paint teks Neobrutalisme untuk label nilai ringkas di atas batang
                         val textPaint = android.graphics.Paint().apply {
                             color = android.graphics.Color.BLACK
-                            textSize = 8.5.sp.toPx()
+                            textSize = 8.sp.toPx()
                             typeface = android.graphics.Typeface.create(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
                             textAlign = android.graphics.Paint.Align.CENTER
                             isAntiAlias = true
@@ -158,7 +177,7 @@ fun CashflowChartCard(
                         // Paint teks Neobrutalisme untuk label skala nilai maksimum
                         val scaleTextPaint = android.graphics.Paint().apply {
                             color = android.graphics.Color.DKGRAY
-                            textSize = 8.5.sp.toPx()
+                            textSize = 8.sp.toPx()
                             typeface = android.graphics.Typeface.create(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
                             textAlign = android.graphics.Paint.Align.RIGHT
                             isAntiAlias = true
@@ -199,76 +218,99 @@ fun CashflowChartCard(
                             val incomeHeight = ((item.income / safeMax) * maxBarHeight).toFloat().coerceAtLeast(0f)
                             val expenseHeight = ((item.expense / safeMax) * maxBarHeight).toFloat().coerceAtLeast(0f)
 
+                            val hasIncome = item.income > 0 && incomeHeight > 0f
+                            val hasExpense = item.expense > 0 && expenseHeight > 0f
+
+                            val incomeTopY = if (hasIncome) canvasHeight - incomeHeight else canvasHeight
+                            val expenseTopY = if (hasExpense) canvasHeight - expenseHeight else canvasHeight
+
                             // 1. Gambar Bar Income (Hijau)
-                            if (incomeHeight > 0f) {
-                                val topY = canvasHeight - incomeHeight
+                            if (hasIncome) {
                                 // Shadow bar 2.dp
                                 drawRect(
                                     color = Color.Black,
-                                    topLeft = Offset(incomeBarX + 2.dp.toPx(), topY + 2.dp.toPx()),
+                                    topLeft = Offset(incomeBarX + 2.dp.toPx(), incomeTopY + 2.dp.toPx()),
                                     size = Size(barWidth, incomeHeight)
                                 )
                                 // Isi bar
                                 drawRect(
                                     color = Color(0xFF00E676),
-                                    topLeft = Offset(incomeBarX, topY),
+                                    topLeft = Offset(incomeBarX, incomeTopY),
                                     size = Size(barWidth, incomeHeight)
                                 )
                                 // Border bar
                                 drawRect(
                                     color = Color.Black,
-                                    topLeft = Offset(incomeBarX, topY),
+                                    topLeft = Offset(incomeBarX, incomeTopY),
                                     size = Size(barWidth, incomeHeight),
                                     style = Stroke(width = 2.dp.toPx())
                                 )
-
-                                // Teks angka nominal ringkas di atas batang income jika nilai > 0
-                                if (item.income > 0) {
-                                    val incomeText = formatCompactAmount(item.income)
-                                    val incomeBarCenterX = incomeBarX + (barWidth / 2f)
-                                    drawContext.canvas.nativeCanvas.drawText(
-                                        incomeText,
-                                        incomeBarCenterX,
-                                        topY - 4.dp.toPx(),
-                                        textPaint
-                                    )
-                                }
                             }
 
                             // 2. Gambar Bar Expense (Merah)
-                            if (expenseHeight > 0f) {
-                                val topY = canvasHeight - expenseHeight
+                            if (hasExpense) {
                                 // Shadow bar 2.dp
                                 drawRect(
                                     color = Color.Black,
-                                    topLeft = Offset(expenseBarX + 2.dp.toPx(), topY + 2.dp.toPx()),
+                                    topLeft = Offset(expenseBarX + 2.dp.toPx(), expenseTopY + 2.dp.toPx()),
                                     size = Size(barWidth, expenseHeight)
                                 )
                                 // Isi bar
                                 drawRect(
                                     color = Color(0xFFDC2626),
-                                    topLeft = Offset(expenseBarX, topY),
+                                    topLeft = Offset(expenseBarX, expenseTopY),
                                     size = Size(barWidth, expenseHeight)
                                 )
                                 // Border bar
                                 drawRect(
                                     color = Color.Black,
-                                    topLeft = Offset(expenseBarX, topY),
+                                    topLeft = Offset(expenseBarX, expenseTopY),
                                     size = Size(barWidth, expenseHeight),
                                     style = Stroke(width = 2.dp.toPx())
                                 )
+                            }
 
-                                // Teks angka nominal ringkas di atas batang expense jika nilai > 0
-                                if (item.expense > 0) {
-                                    val expenseText = formatCompactAmount(item.expense)
-                                    val expenseBarCenterX = expenseBarX + (barWidth / 2f)
-                                    drawContext.canvas.nativeCanvas.drawText(
-                                        expenseText,
-                                        expenseBarCenterX,
-                                        topY - 4.dp.toPx(),
-                                        textPaint
-                                    )
+                            val incomeBarCenterX = incomeBarX + (barWidth / 2f)
+                            val expenseBarCenterX = expenseBarX + (barWidth / 2f)
+
+                            // Deteksi tabrakan label jika kedua batang aktif dan ketinggiannya berdekatan
+                            val isCollisionRisk = hasIncome && hasExpense &&
+                                kotlin.math.abs(incomeTopY - expenseTopY) < 14.dp.toPx()
+
+                            // Teks angka nominal ringkas di atas batang income jika nilai > 0
+                            if (hasIncome) {
+                                val incomeText = formatCompactAmount(item.income)
+                                val xPos = if (isCollisionRisk) incomeBarCenterX - 2.dp.toPx() else incomeBarCenterX
+                                val yPos = if (isCollisionRisk && incomeHeight >= expenseHeight) {
+                                    incomeTopY - 14.dp.toPx()
+                                } else {
+                                    incomeTopY - 4.dp.toPx()
                                 }
+
+                                drawContext.canvas.nativeCanvas.drawText(
+                                    incomeText,
+                                    xPos,
+                                    yPos,
+                                    textPaint
+                                )
+                            }
+
+                            // Teks angka nominal ringkas di atas batang expense jika nilai > 0
+                            if (hasExpense) {
+                                val expenseText = formatCompactAmount(item.expense)
+                                val xPos = if (isCollisionRisk) expenseBarCenterX + 2.dp.toPx() else expenseBarCenterX
+                                val yPos = if (isCollisionRisk && expenseHeight > incomeHeight) {
+                                    expenseTopY - 14.dp.toPx()
+                                } else {
+                                    expenseTopY - 4.dp.toPx()
+                                }
+
+                                drawContext.canvas.nativeCanvas.drawText(
+                                    expenseText,
+                                    xPos,
+                                    yPos,
+                                    textPaint
+                                )
                             }
                         }
                     }

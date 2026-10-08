@@ -456,15 +456,59 @@ fun NeobrutalFastAddDialog(
                     )
                 }
 
-                // Footer Save Button
-                Box(
+                // Footer Save Button & Validation Hint
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val amountVal = CurrencyParser.parseCurrencyInput(amountText)
-                    val isValid = amountVal > 0.0 && title.isNotBlank()
+                    val isAmountValid = amountVal > 0.0
+                    val isTitleValid = title.isNotBlank()
+                    val isValid = isAmountValid && isTitleValid
                     val context = androidx.compose.ui.platform.LocalContext.current
+
+                    // Visual validation hint when inputs are incomplete
+                    if (!isValid) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFFFFF1F2), RectangleShape)
+                                .border(1.5.dp, Color.Black, RectangleShape)
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .background(Color.Black, RectangleShape)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "INFO",
+                                    style = TextStyle(
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 9.sp,
+                                        letterSpacing = 1.sp,
+                                        color = Color.White
+                                    )
+                                )
+                            }
+                            Text(
+                                text = when {
+                                    !isAmountValid && !isTitleValid -> "Nominal dan deskripsi transaksi belum diisi"
+                                    !isAmountValid -> "Nominal belum diisi (harus > Rp 0)"
+                                    else -> "Deskripsi transaksi belum diisi"
+                                },
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = Color.Black
+                                )
+                            )
+                        }
+                    }
 
                     NeobrutalButton(
                         onClick = {
@@ -489,15 +533,21 @@ fun NeobrutalFastAddDialog(
                         shadowOffset = 4.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = "SIMPAN TRANSAKSI",
-                            style = TextStyle(
-                                fontWeight = FontWeight.Black,
-                                fontSize = 14.sp,
-                                letterSpacing = 2.sp,
-                                color = Color.Black
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "SIMPAN TRANSAKSI",
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 14.sp,
+                                    letterSpacing = 2.sp,
+                                    color = if (isValid) Color.Black else Color(0xFF64748B)
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
