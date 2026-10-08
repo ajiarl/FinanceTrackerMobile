@@ -132,15 +132,15 @@ The project follows clean architecture principles combined with modern **MVI (Mo
 
 ## 🚀 Getting Started
 
-### 📱 Direct Download (Install on Android)
-Siapa pun bisa langsung download dan coba aplikasinya tanpa perlu setup Android Studio:
-1. Buka [**GitHub Releases (Latest v1.0.0)**](https://github.com/ajiarl/FinanceTrackerMobile/releases/latest).
-2. Download file **`FinanceTrackerMobile-v1.0.0.apk`**.
-3. Buka file APK di HP Android kamu dan pilih **Install** (izinkan "Install from Unknown Sources" jika diminta).
+### 📱 Quick Install (Direct APK)
+Anyone can directly download and try the app without setting up Android Studio:
+1. Go to [**GitHub Releases (Latest v1.0.0)**](https://github.com/ajiarl/FinanceTrackerMobile/releases/latest).
+2. Download **`FinanceTrackerMobile-v1.0.0.apk`**.
+3. Open the downloaded APK on your Android device and tap **Install** (allow "Install from Unknown Sources" if prompted).
 
 ---
 
-### Prerequisites (For Developers)
+### 💻 Prerequisites (For Developers)
 - **Android Studio**: Ladybug (2024.2.1) or newer.
 - **JDK**: Java Development Kit 17 (LTS).
 - **Android SDK**: `compileSdk = 37`, `minSdk = 24` (Android 7.0 Nougat or higher).
