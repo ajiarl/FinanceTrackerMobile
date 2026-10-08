@@ -23,11 +23,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sena.financetracker.ui.components.RetroIncomeGreen
+import com.sena.financetracker.util.formatCompactAmount
 import com.sena.financetracker.viewmodel.CashflowBarItem
 import kotlin.math.max
 
@@ -117,18 +119,31 @@ fun CashflowChartCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(160.dp)
+                        .height(175.dp)
                         .background(Color(0xFFFAFAFA), RectangleShape)
                         .border(2.dp, Color.Black, RectangleShape)
                         .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         val canvasWidth = size.width
-                        val canvasHeight = size.height - 24.dp.toPx() // sisakan tempat untuk label bawah
+                        val bottomLabelHeight = 24.dp.toPx() // sisakan tempat untuk label bawah
+                        val canvasHeight = size.height - bottomLabelHeight
+                        val topLabelPadding = 20.dp.toPx() // ruang atas agar teks nominal tidak terpotong (clip)
+                        val maxBarHeight = (canvasHeight - topLabelPadding).coerceAtLeast(10f)
+
                         val barGroupCount = cashflowBars.size
                         val groupWidth = canvasWidth / barGroupCount
                         val barWidth = 14.dp.toPx()
                         val barSpacing = 4.dp.toPx()
+
+                        // Paint teks Neobrutalisme untuk label nilai ringkas di atas batang
+                        val textPaint = android.graphics.Paint().apply {
+                            color = android.graphics.Color.BLACK
+                            textSize = 8.5.sp.toPx()
+                            typeface = android.graphics.Typeface.create(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
+                            textAlign = android.graphics.Paint.Align.CENTER
+                            isAntiAlias = true
+                        }
 
                         // Garis dasar horizontal hitam
                         drawLine(
@@ -143,8 +158,8 @@ fun CashflowChartCard(
                             val incomeBarX = groupCenterX - barWidth - (barSpacing / 2)
                             val expenseBarX = groupCenterX + (barSpacing / 2)
 
-                            val incomeHeight = ((item.income / safeMax) * (canvasHeight - 10.dp.toPx())).toFloat().coerceAtLeast(0f)
-                            val expenseHeight = ((item.expense / safeMax) * (canvasHeight - 10.dp.toPx())).toFloat().coerceAtLeast(0f)
+                            val incomeHeight = ((item.income / safeMax) * maxBarHeight).toFloat().coerceAtLeast(0f)
+                            val expenseHeight = ((item.expense / safeMax) * maxBarHeight).toFloat().coerceAtLeast(0f)
 
                             // 1. Gambar Bar Income (Hijau)
                             if (incomeHeight > 0f) {
@@ -168,6 +183,18 @@ fun CashflowChartCard(
                                     size = Size(barWidth, incomeHeight),
                                     style = Stroke(width = 2.dp.toPx())
                                 )
+
+                                // Teks angka nominal ringkas di atas batang income jika nilai > 0
+                                if (item.income > 0) {
+                                    val incomeText = formatCompactAmount(item.income)
+                                    val incomeBarCenterX = incomeBarX + (barWidth / 2f)
+                                    drawContext.canvas.nativeCanvas.drawText(
+                                        incomeText,
+                                        incomeBarCenterX,
+                                        topY - 4.dp.toPx(),
+                                        textPaint
+                                    )
+                                }
                             }
 
                             // 2. Gambar Bar Expense (Merah)
@@ -192,6 +219,18 @@ fun CashflowChartCard(
                                     size = Size(barWidth, expenseHeight),
                                     style = Stroke(width = 2.dp.toPx())
                                 )
+
+                                // Teks angka nominal ringkas di atas batang expense jika nilai > 0
+                                if (item.expense > 0) {
+                                    val expenseText = formatCompactAmount(item.expense)
+                                    val expenseBarCenterX = expenseBarX + (barWidth / 2f)
+                                    drawContext.canvas.nativeCanvas.drawText(
+                                        expenseText,
+                                        expenseBarCenterX,
+                                        topY - 4.dp.toPx(),
+                                        textPaint
+                                    )
+                                }
                             }
                         }
                     }
