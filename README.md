@@ -1,85 +1,215 @@
-# 💸 FinanceTracker Mobile (Neobrutalism Edition)
+# 💸 FinanceTracker Mobile
 
-A high-performance, offline-first personal finance tracker for Android built with **Jetpack Compose**, **Room Database**, and integrated with **Groq AI (Llama 3)**.
+[![Platform](https://img.shields.io/badge/Platform-Android%20(API%2024%2B)-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
+[![Architecture](https://img.shields.io/badge/Architecture-Clean%20%2F%20MVI-FF6F00?style=for-the-badge)](https://developer.android.com/topic/architecture)
+[![Database](https://img.shields.io/badge/Storage-Room%20(SQLite%20v6)-4169E1?style=for-the-badge&logo=sqlite&logoColor=white)](https://developer.android.com/training/data-storage/room)
+[![Unit Tests](https://img.shields.io/badge/Unit%20Tests-175%20Passing%20(100%25)-00C853?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/ajiarl/FinanceTrackerMobile)
+[![License](https://img.shields.io/badge/License-MIT-000000?style=for-the-badge)](LICENSE)
 
-Designed with a bold **Neobrutalism** aesthetic, strict financial validation, and production-grade security architecture.
-
----
-
-## 🌟 Key Highlights
-
-- **Bold Neobrutalism Design System**: High-contrast typography, heavy borders (2-3dp), hard solid drop-shadow offsets, and vibrant retro color palettes (RetroYellow, NeoCyan, NeoPurple, Slate).
-- **100% Offline-First Architecture**: Built on Room SQLite (Schema v6) with reactive StateFlow streams, instant in-memory balance recalculations, and automated ledger balance reconciliations.
-- **Pak Hemat · AI Insight Engine**:
-  - **Cloud Mode**: Direct integration with Groq API (Llama 3 70B/8B) with XML prompt isolation and anti-prompt injection sanitization.
-  - **Dynamic Local Fallback**: Deterministic offline roasting engine categorized into 8+ spending clusters (F&B, E-Commerce, Gaming/Entertainment, Transport, Gadgets/Hardware, Utilities, etc.) that cites actual user transaction titles and amounts.
-- **Hardware-Backed Keystore Security**: API keys are securely encrypted via Android Keystore (`ApiKeyStorage`) with AES-256-GCM encryption and masked previews (`gsk_••••••••xxxx`).
-- **Comprehensive Test Suite**: **175 Unit Tests (100% passing)** covering currency parsing, cashflow chart collision math, ledger reconciliations, CSV atomic exports, and security barriers.
+> **High-performance, offline-first personal finance tracker for Android built with Jetpack Compose, high-contrast Neobrutalism design system, Room Database, and dual-tier intelligence (Cloud Groq AI + On-Device Fallback).**
 
 ---
 
-## 🏗 Tech Stack & Architecture
+## 📑 Table of Contents
 
-- **Language**: Kotlin 2.0+
-- **UI Toolkit**: Jetpack Compose (Material3 + Custom Neobrutal Design System)
-- **Architecture**: MVI / MVVM Pattern with StateFlow & SharedFlow
-- **Local Persistence**: Room SQLite v6 with Migration Engine
-- **Asynchronous**: Kotlin Coroutines & Flow
-- **Security**: Android Keystore AES-256-GCM (`EncryptedSharedPreferences`)
-- **Networking**: OkHttp 4 / Retrofit for Groq AI endpoints
-- **Testing**: JUnit 4, Robolectric, Kotlinx Coroutines Test (175 tests)
+- [Overview](#-overview)
+- [Design Philosophy: Authentic Neobrutalism](#-design-philosophy-authentic-neobrutalism)
+- [Key Features](#-key-features)
+- [System Architecture](#-system-architecture)
+- [Security & Hardware Cryptography](#-security--hardware-cryptography)
+- [Technology Stack](#-technology-stack)
+- [Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Build and Run](#build-and-run)
+  - [Running Tests](#running-tests)
+- [Project Directory Structure](#-project-directory-structure)
+- [Testing & Quality Assurance](#-testing--quality-assurance)
+- [License & Author](#-license--author)
 
 ---
 
-## 📊 Features
+## 🎯 Overview
 
-1. **Dashboard & Fast-Add Modal**:
-   - Quick expense & income recording with smart category selectors.
-   - Neobrutal visual feedback with haptic integration.
-   - Form validation with clear visual status helpers.
-2. **Account & Multi-Wallet Management**:
-   - Cash, Bank, E-Wallet, and Investment wallets.
-   - Atomic inter-account transfers with single-transaction rollback safety.
-3. **Interactive Cashflow & Financial Reports**:
-   - Monthly cashflow bar charts (Income vs Expense) with smart horizontal label isolation and collision avoidance.
-   - Category composition breakdowns and Net Savings Rate calculation.
-4. **AI Financial Advisor (Pak Hemat)**:
-   - Evaluates monthly burn rates and delivers witty, actionable financial roasts.
-   - Cloud vs Local toggle with real-time connection status badges.
-5. **Data Portability**:
-   - Atomic CSV ledger export & import with RFC-4180 parsing compliance.
+**FinanceTracker Mobile** is designed from the ground up to solve common flaws in conventional finance apps: cluttered dashboards, intrusive cloud tracking, soft low-contrast UI, and fragile network-dependent analytics. 
+
+By combining a **local-first SQLite database**, zero-latency offline transaction handling, and an **Android Keystore-backed AES-256-GCM** vault, your sensitive financial records stay strictly on your device. For financial intelligence, the app bridges remote **Groq Cloud AI (Llama 3.3 70B Versatile)** with an autonomous **dynamic local fallback engine** that parses spending clusters without internet access.
+
+---
+
+## 🎨 Design Philosophy: Authentic Neobrutalism
+
+Unlike generic material dashboards, FinanceTracker embraces bold, utilitarian **Neobrutalism**:
+- **Hard High-Contrast Geometry**: 2–3dp solid black borders (`#000000`) across cards, badges, and modals.
+- **Offset Drop Shadows**: Crisp 4dp offset solid elevation shadows without blurred gradients.
+- **Vibrant Functional Accents**:
+  - `RetroYellow (#FAFF00)` — Primary calls to action and interactive highlights.
+  - `CyberMint (#00F0FF)` & `SoftCyan (#E0F7FA)` — Incomes and net balance indicators.
+  - `CoralPink (#FF6B6B)` & `CrimsonRed (#DC2626)` — Expense warnings, critical limits, and overbudget indicators.
+  - `LavenderCard (#E2D9F3)` & `PaperCard (#F8F9FA)` — High-readability surfaces.
+- **Strict WCAG AAA Contrast**: Dark foreground typography (`#0F172A`) over light slate surfaces (`#E2E8F0`) with minimum 13.75:1 contrast ratios.
+
+---
+
+## ⚡ Key Features
+
+### 1. 📊 Real-Time Financial Dashboard & Analytics
+- **Live Net Balance & Velocity**: Immediate calculation of total balance, income vs. expense run-rates, and monthly savings rate.
+- **Multi-Period Cashflow Bar Chart**: Responsive monthly breakdown with isolated axis alignment to eliminate overlapping text collisions.
+- **Dynamic Category Allocation**: Visual spend distribution across categories (Food, Transport, Bills, Shopping, Health, etc.).
+
+### 2. 🤖 Hybrid Dual-Tier AI Financial Insights ("Pak Hemat")
+- **Cloud AI (Groq Llama 3.3 70B)**: Deep financial audits, savings recommendations, and spending habit critiques.
+- **Prompt Injection Defense**: Multi-stage input sanitizer stripping jailbreaks, control tokens, and instruction overrides before API delivery.
+- **Autonomous Local Fallback**: Dynamic 8-cluster offline analysis evaluating multi-category outliers, negative cashflow anomalies, and fixed overhead ratios.
+
+### 3. 🚨 Predictive Budgeting & Overbudget Alert Engine
+- **Category Threshold Monitoring**: Real-time evaluation against customizable category limits.
+- **Tiered Warning System**: Dual-state indicators (**Warning 80%** vs. **Critical Overbudget 100%+**).
+- **In-App Notification Center**: Instant visual alert badges highlighting actionable savings opportunities.
+
+### 4. 🔒 Enterprise-Grade Privacy & Data Portability
+- **Zero-Cloud Requirement**: Operates 100% offline out of the box.
+- **Atomic CSV Import/Export**: Robust backup engine with RFC 4180 parsing, automated column reconciliation, and duplicate transaction prevention.
+- **Android Keystore AES-256-GCM**: Hardware-level encryption for sensitive configurations and third-party API keys (`EncryptedSharedPreferences`).
+
+---
+
+## 🏛 System Architecture
+
+The project follows clean architecture principles combined with modern **MVI (Model-View-Intent) / unidirectional data flow**:
+
+```
+┌────────────────────────────────────────────────────────┐
+│                   UI Layer (Compose)                   │
+│  Activities · Screens (Dashboard, Settings, Reports)   │
+│  Components (Neobrutal Cards, Dialogs, Charts)         │
+└───────────────────────────┬────────────────────────────┘
+                            │ StateFlow / Events
+┌───────────────────────────▼────────────────────────────┐
+│                  ViewModel Layer (MVI)                 │
+│  FinanceDashboardViewModel · Budget & Alert Evaluators │
+└───────────────────────────┬────────────────────────────┘
+                            │ Domain Models / Operations
+┌───────────────────────────▼────────────────────────────┐
+│                    Repository Layer                    │
+│  FinanceRepositoryImpl · CsvTransactionRepository      │
+└─────────────┬───────────────────────────┬──────────────┘
+              │                           │
+┌─────────────▼─────────────┐ ┌───────────▼──────────────┐
+│       Storage Layer       │ │      Service Layer       │
+│  Room Database (SQLite v6) │ │  AiInsightService (Groq) │
+│  EncryptedSharedPreferences│ │  Dynamic Fallback Engine │
+└───────────────────────────┘ └──────────────────────────┘
+```
+
+---
+
+## 🛡 Security & Hardware Cryptography
+
+- **Keystore Isolation**: Sensitive keys (such as Groq Cloud API tokens) are never stored in plaintext SQLite databases or shared properties. They are protected using `ApiKeyStorage.kt` backed by Android's hardware security module (`MasterKey` / AES-256-GCM).
+- **Logcat Redaction**: Kiosk and release builds enforce strict token sanitization; sensitive strings appear as `[REDACTED]` across execution logs.
+- **Memory Hygiene**: Encrypted key values are wiped and retrieved strictly upon active HTTPS network requests.
+
+---
+
+## 🛠 Technology Stack
+
+| Layer | Technologies |
+|---|---|
+| **Language** | Kotlin 2.0.21 (JVM 17 Target) |
+| **UI Framework** | Jetpack Compose (BOM 2024.10.00), Compose Material 3 |
+| **Architecture** | Clean Architecture, MVI Pattern, StateFlow / SharedFlow |
+| **Local Database** | Room Database 2.6.1 (SQLite v6, Flow-based queries) |
+| **Cryptography** | AndroidX Security Crypto 1.1.0-alpha06 (MasterKeys, Keystore) |
+| **Cloud AI** | Groq Cloud API (Llama 3.3 70B Versatile), OkHttp3 4.12.0 |
+| **Build System** | Gradle 8.13, Android Gradle Plugin 8.7.1, Kotlin KSP 2.0.21 |
+| **Testing** | JUnit 4, Kotlinx Coroutines Test, Turbine, Robolectric |
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Android Studio Ladybug / Meerkat (or newer)
-- JDK 17 or JDK 21
-- Android SDK 35 (compileSdk 35, minSdk 26)
+- **Android Studio**: Ladybug (2024.2.1) or newer.
+- **JDK**: Java Development Kit 17 (LTS).
+- **Android SDK**: `compileSdk = 37`, `minSdk = 24` (Android 7.0 Nougat or higher).
+- **Device**: Android physical device with USB Debugging enabled, or Android Emulator.
 
-### Clone & Build
+### Build and Run
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/ajiarl/FinanceTrackerMobile.git
+   cd FinanceTrackerMobile
+   ```
+
+2. **Assemble the debug build:**
+   ```bash
+   # Linux / macOS
+   ./gradlew assembleDebug
+
+   # Windows
+   gradlew.bat assembleDebug
+   ```
+
+3. **Install on target device via ADB:**
+   ```bash
+   adb install -r app/build/outputs/apk/debug/app-debug.apk
+   ```
+
+*(Optional)* To enable online Groq AI insights, open the in-app **Settings** menu and insert your personal API key from [Groq Console](https://console.groq.com). If left empty, the application automatically runs on the autonomous local fallback engine.
+
+### Running Tests
+
+Execute the comprehensive test suite directly from your terminal:
 ```bash
-# Clone the repository
-git clone https://github.com/ajiarl/FinanceTrackerMobile.git
-cd FinanceTrackerMobile
-
-# Run unit tests (175 tests)
 ./gradlew testDebugUnitTest
-
-# Build debug APK
-./gradlew assembleDebug
 ```
 
 ---
 
-## 🔒 Security & Privacy
+## 📂 Project Directory Structure
 
-- **Zero Data Leakage**: All financial transaction records reside locally on your physical device in SQLite. No tracking, no telemetry, no analytics.
-- **API Key Safety**: Groq API Keys are stored strictly inside the device hardware Keystore. Keys are never logged in Logcat, never sent to external third parties, and never committed to source control.
+```text
+app/src/
+├── main/
+│   ├── java/com/sena/financetracker/
+│   │   ├── data/                 # Database entities, DAOs, Room database migrations
+│   │   │   ├── dao/              # TransactionDao, BudgetDao, NotificationDao
+│   │   │   ├── entity/           # TransactionEntity, BudgetEntity, NotificationEntity
+│   │   │   └── security/         # ApiKeyStorage (AES-256-GCM Keystore)
+│   │   ├── domain/               # Domain models, CSV parser, validation contracts
+│   │   ├── repository/           # Repository implementations & data boundaries
+│   │   ├── service/              # AiInsightService, Groq client, prompt defense
+│   │   ├── ui/                   # Jetpack Compose UI
+│   │   │   ├── components/       # Neobrutal buttons, dialogs, badges, inputs
+│   │   │   ├── dashboard/        # Dashboard screen, cards, cashflow charts, reports
+│   │   │   └── theme/            # Color palettes, typography, Brutalist design tokens
+│   │   └── viewmodel/            # DashboardViewModel, MVI state & intent evaluators
+│   └── res/                      # Android resources, XML configs, strings
+└── test/                         # Unit tests suite (175 tests, 100% passing)
+```
 
 ---
 
-## 📄 License
+## 🧪 Testing & Quality Assurance
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Code stability is enforced through a strict double-gate verification pipeline:
+- **175 Automated Unit Tests** covering:
+  - Cryptographic Keystore key lifecycle and encryption/decryption boundaries.
+  - CSV import/export RFC 4180 parsing edge cases.
+  - Prompt sanitization and jailbreak neutralization.
+  - Cashflow chart math alignment and label collision prevention (`CashflowChartLogicTest`).
+  - Budget calculations, 80%/100% threshold triggers, and in-app alerts.
+- **Zero-Warning Architecture**: Verified clean imports, lint-checked Kotlin code, and deterministic Git worktrees.
+
+---
+
+## 📄 License & Author
+
+Distributed under the **MIT License**. See `LICENSE` for more information.
+
+- **Author**: [Aji Arlando](https://github.com/ajiarl)
+- **Repository**: [https://github.com/ajiarl/FinanceTrackerMobile](https://github.com/ajiarl/FinanceTrackerMobile)
