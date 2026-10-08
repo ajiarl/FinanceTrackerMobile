@@ -151,12 +151,10 @@ fun AiInsightsPanel(
                 }
 
                 // Tombol Refresh Neobrutal
-                val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+                val context = androidx.compose.ui.platform.LocalContext.current
                 Box(
                     modifier = Modifier.clickable(enabled = !isLoading) {
-                        try {
-                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
-                        } catch (_: Exception) {}
+                        com.sena.financetracker.ui.components.NeobrutalHapticEngine.tick(context, true)
                         onRefresh()
                     }
                 ) {

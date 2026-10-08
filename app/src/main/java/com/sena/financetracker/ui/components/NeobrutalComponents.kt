@@ -263,16 +263,14 @@ fun NeobrutalSwitch(
     uncheckedColor: Color = Color(0xFFE5E7EB),
     thumbColor: Color = Color.Black
 ) {
-    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Box(
         modifier = modifier
             .width(54.dp)
             .height(30.dp)
             .clickable {
-                try {
-                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
-                } catch (_: Exception) {}
+                NeobrutalHapticEngine.tick(context, true)
                 onCheckedChange(!checked)
             }
     ) {

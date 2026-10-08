@@ -40,7 +40,6 @@ fun ReportsHeaderFilterSection(
     selectedPreset: String,
     onPresetSelected: (String) -> Unit,
     context: Context,
-    haptic: HapticFeedback,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -73,9 +72,7 @@ fun ReportsHeaderFilterSection(
             // Tombol Neobrutal "BAGIKAN CSV"
             Box(
                 modifier = Modifier.clickable {
-                    try {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    } catch (_: Exception) {}
+                    com.sena.financetracker.ui.components.NeobrutalHapticEngine.heavyClick(context, uiState.isHapticEnabled)
                     if (uiState.transactions.isEmpty()) {
                         Toast.makeText(context, "Belum ada transaksi untuk diekspor!", Toast.LENGTH_SHORT).show()
                     } else {

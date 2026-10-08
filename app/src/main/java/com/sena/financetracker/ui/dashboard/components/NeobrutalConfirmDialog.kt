@@ -128,7 +128,7 @@ fun NeobrutalConfirmDialog(
                     Spacer(modifier = Modifier.width(12.dp))
 
                     // Tombol KONFIRMASI (Merah)
-                    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+                    val context = androidx.compose.ui.platform.LocalContext.current
                     Box {
                         // Shadow tombol
                         Box(
@@ -141,9 +141,7 @@ fun NeobrutalConfirmDialog(
                         Box(
                             modifier = Modifier
                                 .clickable {
-                                    try {
-                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                    } catch (_: Exception) {}
+                                    com.sena.financetracker.ui.components.NeobrutalHapticEngine.heavyClick(context, true)
                                     onConfirm()
                                 }
                                 .background(confirmButtonColor, RectangleShape)

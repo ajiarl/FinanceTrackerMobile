@@ -211,13 +211,9 @@ fun FinanceDashboardContent(
                 }
             },
             floatingActionButton = {
-                val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+                val context = androidx.compose.ui.platform.LocalContext.current
                 DashboardFab(onClick = {
-                    if (uiState.isHapticEnabled) {
-                        try {
-                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                        } catch (_: Exception) {}
-                    }
+                    com.sena.financetracker.ui.components.NeobrutalHapticEngine.heavyClick(context, uiState.isHapticEnabled)
                     showAddDialog = true
                 })
             },

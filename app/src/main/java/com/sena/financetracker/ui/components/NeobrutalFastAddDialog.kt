@@ -460,14 +460,12 @@ fun NeobrutalFastAddDialog(
                 ) {
                     val amountVal = amountText.toDoubleOrNull() ?: 0.0
                     val isValid = amountVal > 0.0 && title.isNotBlank()
-                    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+                    val context = androidx.compose.ui.platform.LocalContext.current
 
                     NeobrutalButton(
                         onClick = {
                             if (isValid) {
-                                try {
-                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                } catch (_: Exception) {}
+                                NeobrutalHapticEngine.heavyClick(context, true)
                                 onSave(
                                     title.trim(),
                                     amountVal,

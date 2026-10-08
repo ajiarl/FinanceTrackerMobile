@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.sena.financetracker.ui.dashboard.components.AiInsightsPanel
 import com.sena.financetracker.ui.dashboard.components.reports.CashflowChartCard
@@ -31,7 +30,6 @@ fun ReportsScreen(
 ) {
     val reports = uiState.reportsAnalytics
     val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
 
     LazyColumn(
         modifier = modifier
@@ -46,8 +44,7 @@ fun ReportsScreen(
                 uiState = uiState,
                 selectedPreset = reports.periodPreset,
                 onPresetSelected = onPresetSelected,
-                context = context,
-                haptic = haptic
+                context = context
             )
         }
 
