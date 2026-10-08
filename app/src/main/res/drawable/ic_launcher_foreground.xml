@@ -1,0 +1,43 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.65"
+        android:scaleY="0.65"
+        android:translateX="18.9"
+        android:translateY="18.9">
+        
+        <!-- Neobrutalist Hard Offset Shadow -->
+        <path
+            android:fillColor="#000000"
+            android:pathData="M26,30 L86,30 L86,90 L26,90 Z" />
+
+        <!-- Neobrutalist Main Card (CyberMint) -->
+        <path
+            android:fillColor="#00F0FF"
+            android:pathData="M20,24 L80,24 L80,84 L20,84 Z" />
+
+        <!-- Black Border 3dp -->
+        <path
+            android:strokeColor="#000000"
+            android:strokeWidth="6"
+            android:strokeLineJoin="miter"
+            android:pathData="M20,24 L80,24 L80,84 L20,84 Z" />
+
+        <!-- Bold Currency / Finance Symbol: Modern Bold Dollar '$' in Jet Black -->
+        <!-- Vertical Bar 1 -->
+        <path
+            android:strokeColor="#000000"
+            android:strokeWidth="5"
+            android:strokeLineCap="square"
+            android:pathData="M50,34 L50,74" />
+
+        <!-- '$' Curves & Bars -->
+        <!-- Top bar/curve -->
+        <path
+            android:fillColor="#000000"
+            android:pathData="M64,44 C64,38 60,36 50,36 C40,36 36,40 36,46 C36,52 40,54 50,56 C60,58 65,60 65,66 C65,74 58,76 50,76 C40,76 35,70 35,64 L43,64 C43,68 46,70 50,70 C55,70 57,68 57,65 C57,61 54,60 46,58 C37,56 30,53 30,46 C30,38 37,32 50,32 C62,32 68,38 68,44 Z" />
+    </group>
+</vector>
