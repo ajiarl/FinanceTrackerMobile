@@ -124,6 +124,9 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
      */
     suspend fun <T> runInTransaction(block: suspend () -> T): T = withContext(Dispatchers.IO) {
         val db = writableDatabase
+        if (db.inTransaction()) {
+            return@withContext block()
+        }
         db.beginTransaction()
         try {
             val result = block()
@@ -238,8 +241,13 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         override suspend fun insertTransaction(transaction: TransactionEntity): Long = withContext(Dispatchers.IO) {
             val db = writableDatabase
             val values = DatabaseMappers.toContentValues(transaction)
-            val id = db.insert(TABLE_TRANSACTIONS, null, values)
-            refreshTransactionsFlowInternal()
+            val id = db.insertOrThrow(TABLE_TRANSACTIONS, null, values)
+            if (id == -1L) {
+                throw IllegalStateException("Gagal menyimpan transaksi ke database: insert mengembalikan -1")
+            }
+            if (!db.inTransaction()) {
+                refreshTransactionsFlowInternal()
+            }
             id
         }
 
@@ -247,21 +255,27 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             val db = writableDatabase
             val values = DatabaseMappers.toContentValues(transaction)
             db.update(TABLE_TRANSACTIONS, values, "$COL_TX_ID = ?", arrayOf(transaction.id.toString()))
-            refreshTransactionsFlowInternal()
+            if (!db.inTransaction()) {
+                refreshTransactionsFlowInternal()
+            }
             Unit
         }
 
         override suspend fun deleteTransaction(id: Long) = withContext(Dispatchers.IO) {
             val db = writableDatabase
             db.delete(TABLE_TRANSACTIONS, "$COL_TX_ID = ?", arrayOf(id.toString()))
-            refreshTransactionsFlowInternal()
+            if (!db.inTransaction()) {
+                refreshTransactionsFlowInternal()
+            }
             Unit
         }
 
         override suspend fun clearAllTransactions() = withContext(Dispatchers.IO) {
             val db = writableDatabase
             db.delete(TABLE_TRANSACTIONS, null, null)
-            refreshTransactionsFlowInternal()
+            if (!db.inTransaction()) {
+                refreshTransactionsFlowInternal()
+            }
             Unit
         }
 
@@ -285,18 +299,26 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             withContext(Dispatchers.IO) {
                 val db = writableDatabase
                 val ids = mutableListOf<Long>()
-                db.beginTransaction()
+                val wasInTx = db.inTransaction()
+                if (!wasInTx) db.beginTransaction()
                 try {
                     for (tx in transactions) {
                         val values = DatabaseMappers.toContentValues(tx)
-                        val id = db.insert(TABLE_TRANSACTIONS, null, values)
+                        val id = db.insertOrThrow(TABLE_TRANSACTIONS, null, values)
+                        if (id == -1L) {
+                            throw IllegalStateException("Gagal menyimpan transaksi batch ke database: insert mengembalikan -1")
+                        }
                         ids.add(id)
                     }
-                    db.setTransactionSuccessful()
+                    if (!wasInTx) db.setTransactionSuccessful()
                 } finally {
-                    db.endTransaction()
+                    if (!wasInTx && db.inTransaction()) {
+                        db.endTransaction()
+                    }
                 }
-                refreshTransactionsFlowInternal()
+                if (!wasInTx) {
+                    refreshTransactionsFlowInternal()
+                }
                 ids
             }
     }
@@ -324,8 +346,13 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         override suspend fun insertAccount(account: AccountEntity): Long = withContext(Dispatchers.IO) {
             val db = writableDatabase
             val values = DatabaseMappers.toContentValues(account)
-            val id = db.insert(TABLE_ACCOUNTS, null, values)
-            refreshAccountsFlowInternal()
+            val id = db.insertOrThrow(TABLE_ACCOUNTS, null, values)
+            if (id == -1L) {
+                throw IllegalStateException("Gagal menyimpan akun ke database: insert mengembalikan -1")
+            }
+            if (!db.inTransaction()) {
+                refreshAccountsFlowInternal()
+            }
             id
         }
 
@@ -333,7 +360,9 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             val db = writableDatabase
             val values = android.content.ContentValues().apply { put(COL_ACC_BALANCE, newBalance) }
             db.update(TABLE_ACCOUNTS, values, "$COL_ACC_ID = ?", arrayOf(id.toString()))
-            refreshAccountsFlowInternal()
+            if (!db.inTransaction()) {
+                refreshAccountsFlowInternal()
+            }
             Unit
         }
 
@@ -343,14 +372,18 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
                 "UPDATE $TABLE_ACCOUNTS SET $COL_ACC_BALANCE = $COL_ACC_BALANCE + ? WHERE $COL_ACC_ID = ?",
                 arrayOf(delta.toString(), id.toString())
             )
-            refreshAccountsFlowInternal()
+            if (!db.inTransaction()) {
+                refreshAccountsFlowInternal()
+            }
             Unit
         }
 
         override suspend fun deleteAccount(id: Long) = withContext(Dispatchers.IO) {
             val db = writableDatabase
             db.delete(TABLE_ACCOUNTS, "$COL_ACC_ID = ?", arrayOf(id.toString()))
-            refreshAccountsFlowInternal()
+            if (!db.inTransaction()) {
+                refreshAccountsFlowInternal()
+            }
             Unit
         }
     }
@@ -382,8 +415,13 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         override suspend fun insertCategory(category: CategoryEntity): Long = withContext(Dispatchers.IO) {
             val db = writableDatabase
             val values = DatabaseMappers.toContentValues(category)
-            val id = db.insert(TABLE_CATEGORIES, null, values)
-            refreshCategoriesFlowInternal()
+            val id = db.insertOrThrow(TABLE_CATEGORIES, null, values)
+            if (id == -1L) {
+                throw IllegalStateException("Gagal menyimpan kategori ke database: insert mengembalikan -1")
+            }
+            if (!db.inTransaction()) {
+                refreshCategoriesFlowInternal()
+            }
             id
         }
 
@@ -391,14 +429,18 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             val db = writableDatabase
             val values = DatabaseMappers.toContentValues(category)
             val count = db.update(TABLE_CATEGORIES, values, "$COL_CAT_ID = ?", arrayOf(category.id.toString()))
-            refreshCategoriesFlowInternal()
+            if (!db.inTransaction()) {
+                refreshCategoriesFlowInternal()
+            }
             count
         }
 
         override suspend fun deleteCategory(id: Long): Int = withContext(Dispatchers.IO) {
             val db = writableDatabase
             val count = db.delete(TABLE_CATEGORIES, "$COL_CAT_ID = ?", arrayOf(id.toString()))
-            refreshCategoriesFlowInternal()
+            if (!db.inTransaction()) {
+                refreshCategoriesFlowInternal()
+            }
             count
         }
     }
@@ -430,8 +472,13 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         override suspend fun insertBudget(budget: BudgetEntity): Long = withContext(Dispatchers.IO) {
             val db = writableDatabase
             val values = DatabaseMappers.toContentValues(budget)
-            val id = db.insert(TABLE_BUDGETS, null, values)
-            refreshBudgetsFlowInternal()
+            val id = db.insertOrThrow(TABLE_BUDGETS, null, values)
+            if (id == -1L) {
+                throw IllegalStateException("Gagal menyimpan anggaran ke database: insert mengembalikan -1")
+            }
+            if (!db.inTransaction()) {
+                refreshBudgetsFlowInternal()
+            }
             id
         }
 
@@ -439,14 +486,18 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             val db = writableDatabase
             val values = DatabaseMappers.toContentValues(budget)
             db.update(TABLE_BUDGETS, values, "$COL_BUDGET_ID = ?", arrayOf(budget.id.toString()))
-            refreshBudgetsFlowInternal()
+            if (!db.inTransaction()) {
+                refreshBudgetsFlowInternal()
+            }
             Unit
         }
 
         override suspend fun deleteBudget(id: Long) = withContext(Dispatchers.IO) {
             val db = writableDatabase
             db.delete(TABLE_BUDGETS, "$COL_BUDGET_ID = ?", arrayOf(id.toString()))
-            refreshBudgetsFlowInternal()
+            if (!db.inTransaction()) {
+                refreshBudgetsFlowInternal()
+            }
             Unit
         }
     }
@@ -460,8 +511,13 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         override suspend fun insertNotification(notification: NotificationEntity): Long = withContext(Dispatchers.IO) {
             val db = writableDatabase
             val values = DatabaseMappers.toContentValues(notification)
-            val id = db.insert(TABLE_NOTIFICATIONS, null, values)
-            refreshNotificationsFlowInternal()
+            val id = db.insertOrThrow(TABLE_NOTIFICATIONS, null, values)
+            if (id == -1L) {
+                throw IllegalStateException("Gagal menyimpan notifikasi ke database: insert mengembalikan -1")
+            }
+            if (!db.inTransaction()) {
+                refreshNotificationsFlowInternal()
+            }
             id
         }
 
@@ -469,7 +525,9 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             val db = writableDatabase
             val values = android.content.ContentValues().apply { put(COL_NOTIF_IS_READ, 1) }
             db.update(TABLE_NOTIFICATIONS, values, "$COL_NOTIF_ID = ?", arrayOf(id.toString()))
-            refreshNotificationsFlowInternal()
+            if (!db.inTransaction()) {
+                refreshNotificationsFlowInternal()
+            }
             Unit
         }
 
@@ -477,21 +535,27 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             val db = writableDatabase
             val values = android.content.ContentValues().apply { put(COL_NOTIF_IS_READ, 1) }
             db.update(TABLE_NOTIFICATIONS, values, null, null)
-            refreshNotificationsFlowInternal()
+            if (!db.inTransaction()) {
+                refreshNotificationsFlowInternal()
+            }
             Unit
         }
 
         override suspend fun clearAllNotifications() = withContext(Dispatchers.IO) {
             val db = writableDatabase
             db.delete(TABLE_NOTIFICATIONS, null, null)
-            refreshNotificationsFlowInternal()
+            if (!db.inTransaction()) {
+                refreshNotificationsFlowInternal()
+            }
             Unit
         }
 
         override suspend fun deleteNotification(id: Long) = withContext(Dispatchers.IO) {
             val db = writableDatabase
             db.delete(TABLE_NOTIFICATIONS, "$COL_NOTIF_ID = ?", arrayOf(id.toString()))
-            refreshNotificationsFlowInternal()
+            if (!db.inTransaction()) {
+                refreshNotificationsFlowInternal()
+            }
             Unit
         }
     }

@@ -32,7 +32,14 @@ class TransactionRepository(
     val appDatabase: AppDatabase? = null
 ) {
     // Delegasi domain handler
-    val accountHandler = AccountDomainHandler(accountDao, transactionDao)
+    val accountHandler = AccountDomainHandler(
+        accountDao = accountDao,
+        transactionDao = transactionDao,
+        transactionRunner = object : TransactionRunner {
+            override suspend fun <T> runInTransaction(block: suspend () -> T): T =
+                this@TransactionRepository.runInTransaction(block)
+        }
+    )
     val categoryHandler = CategoryDomainHandler(categoryDao)
     val budgetHandler = BudgetDomainHandler(budgetDao, transactionDao, notificationDao)
     val notificationHandler = NotificationDomainHandler(notificationDao)
@@ -262,7 +269,8 @@ class TransactionRepository(
     fun getAllAccounts(): Flow<List<AccountEntity>> = accountHandler.getAllAccounts()
 
     /**
-     * Mendelegasikan transfer dana antar rekening ke [AccountDomainHandler] dengan validasi overdraft.
+     * Mendelegasikan transfer dana antar rekening ke [AccountDomainHandler] dengan validasi overdraft
+     * dan jaminan atomisitas ACID via [runInTransaction].
      *
      * @throws IllegalArgumentException Jika rekening sama, nominal tidak valid, atau saldo asal tidak cukup.
      */
@@ -272,20 +280,32 @@ class TransactionRepository(
         amount: Double,
         notes: String = "",
         date: String
-    ) = accountHandler.transferFunds(fromAccount, toAccount, amount, notes, date)
+    ) = runInTransaction {
+        accountHandler.transferFunds(fromAccount, toAccount, amount, notes, date)
+    }
 
+    /**
+     * Menambahkan akun baru dan mencatat saldo awal secara atomik melalui [AccountDomainHandler].
+     */
     suspend fun addAccount(
         name: String,
         type: String,
         initialBalance: Double,
         date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-    ): Long = accountHandler.addAccount(name, type, initialBalance, date)
+    ): Long = runInTransaction {
+        accountHandler.addAccount(name, type, initialBalance, date)
+    }
 
+    /**
+     * Merekonsiliasi saldo akun dengan saldo aktual secara atomik melalui [AccountDomainHandler].
+     */
     suspend fun reconcileAccount(
         account: AccountEntity,
         actualBalance: Double,
         date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-    ) = accountHandler.reconcileAccount(account, actualBalance, date)
+    ) = runInTransaction {
+        accountHandler.reconcileAccount(account, actualBalance, date)
+    }
 
     // ── CATEGORIES DOMAIN FACADE ──────────────────────────────────────────────
     val systemCategoryNames: Set<String> get() = categoryHandler.systemCategoryNames

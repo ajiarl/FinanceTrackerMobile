@@ -25,7 +25,10 @@ object DatabaseSeeder {
                 put(DatabaseSchema.COL_ACC_TYPE, type)
                 put(DatabaseSchema.COL_ACC_BALANCE, balance)
             }
-            db.insert(DatabaseSchema.TABLE_ACCOUNTS, null, cv)
+            val id = db.insertOrThrow(DatabaseSchema.TABLE_ACCOUNTS, null, cv)
+            if (id == -1L) {
+                throw IllegalStateException("Gagal melakukan seeding akun $name (insert mengembalikan -1)")
+            }
         }
     }
 
@@ -49,7 +52,10 @@ object DatabaseSeeder {
                 put(DatabaseSchema.COL_CAT_TYPE, type)
                 put(DatabaseSchema.COL_CAT_COLOR, color)
             }
-            db.insert(DatabaseSchema.TABLE_CATEGORIES, null, cv)
+            val id = db.insertOrThrow(DatabaseSchema.TABLE_CATEGORIES, null, cv)
+            if (id == -1L) {
+                throw IllegalStateException("Gagal melakukan seeding kategori $name (insert mengembalikan -1)")
+            }
         }
     }
 }
