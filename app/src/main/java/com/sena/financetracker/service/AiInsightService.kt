@@ -37,7 +37,7 @@ object AiInsightService {
         budgets: List<BudgetProgressItem> = emptyList(),
         transactions: List<TransactionEntity> = emptyList(),
         periodTitle: String = "Periode Ini",
-        apiKey: String = BuildConfig.GROQ_API_KEY
+        apiKey: String = com.sena.financetracker.util.SecurityConfig.getGroqApiKey()
     ): String = withContext(Dispatchers.IO) {
         val totalNetWorth = accounts.sumOf { it.balance }
         val overBudgets = budgets.filter { it.isOver || it.percentage >= 100 }
