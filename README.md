@@ -6,6 +6,7 @@
 [![Architecture](https://img.shields.io/badge/Architecture-Clean%20%2F%20MVI-FF6F00?style=for-the-badge)](https://developer.android.com/topic/architecture)
 [![Database](https://img.shields.io/badge/Storage-Room%20(SQLite%20v6)-4169E1?style=for-the-badge&logo=sqlite&logoColor=white)](https://developer.android.com/training/data-storage/room)
 [![Unit Tests](https://img.shields.io/badge/Unit%20Tests-175%20Passing%20(100%25)-00C853?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/ajiarl/FinanceTrackerMobile)
+[![Download APK](https://img.shields.io/badge/Download-APK%20(v1.0.0)-FF6F00?style=for-the-badge&logo=android&logoColor=white)](https://github.com/ajiarl/FinanceTrackerMobile/releases/latest)
 [![License](https://img.shields.io/badge/License-MIT-000000?style=for-the-badge)](LICENSE)
 
 > **High-performance, offline-first personal finance tracker for Android built with Jetpack Compose, high-contrast Neobrutalism design system, Room Database, and dual-tier intelligence (Cloud Groq AI + On-Device Fallback).**
@@ -131,7 +132,15 @@ The project follows clean architecture principles combined with modern **MVI (Mo
 
 ## 🚀 Getting Started
 
-### Prerequisites
+### 📱 Direct Download (Install on Android)
+Siapa pun bisa langsung download dan coba aplikasinya tanpa perlu setup Android Studio:
+1. Buka [**GitHub Releases (Latest v1.0.0)**](https://github.com/ajiarl/FinanceTrackerMobile/releases/latest).
+2. Download file **`FinanceTrackerMobile-v1.0.0.apk`**.
+3. Buka file APK di HP Android kamu dan pilih **Install** (izinkan "Install from Unknown Sources" jika diminta).
+
+---
+
+### Prerequisites (For Developers)
 - **Android Studio**: Ladybug (2024.2.1) or newer.
 - **JDK**: Java Development Kit 17 (LTS).
 - **Android SDK**: `compileSdk = 37`, `minSdk = 24` (Android 7.0 Nougat or higher).
