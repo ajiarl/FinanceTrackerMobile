@@ -10,12 +10,16 @@ import com.sena.financetracker.data.NotificationEntity
 import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.repository.TransactionRepository
 import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -138,10 +142,15 @@ class FinanceViewModel(
      * 2. Menggabungkan 4 Flow database dari repository menjadi [DataBundle].
      * 3. Mengkalkulasi total keuangan riil, menyaring [FinanceUiState.filteredTransactions], serta kalkulasi [ReportsAnalyticsState].
      */
+    @OptIn(FlowPreview::class)
     private fun observeData() {
+        val debouncedSearchQuery = _searchQuery.debounce { query ->
+            if (query.isEmpty()) 0L else 300L
+        }
+
         val pagingFlow = combine(_pageSize, _visibleTransactionCount) { size, count -> Pair(size, count) }
         val filterParamsFlow = combine(
-            combine(_searchQuery, _selectedCategoryFilter, _selectedDateFilter) { q, c, d -> Triple(q, c, d) },
+            combine(debouncedSearchQuery, _selectedCategoryFilter, _selectedDateFilter) { q, c, d -> Triple(q, c, d) },
             combine(_selectedFilterTab, _reportsPeriodPreset) { t, r -> Pair(t, r) },
             combine(_aiInsightText, _isAiInsightLoading, _aiInsightError) { text, loading, err -> Triple(text, loading, err) },
             pagingFlow
@@ -209,9 +218,11 @@ class FinanceViewModel(
                     pageSize = filter.pageSize,
                     visibleTransactionCount = filter.visibleTransactionCount
                 ).copy(isLoading = false)
-            }.collect { newState ->
-                _uiState.value = newState
             }
+                .flowOn(Dispatchers.Default)
+                .collect { newState ->
+                    _uiState.value = newState
+                }
         }
     }
 
