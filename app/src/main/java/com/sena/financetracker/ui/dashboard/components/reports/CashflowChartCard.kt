@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
@@ -33,6 +34,15 @@ import com.sena.financetracker.util.formatCompactAmount
 import com.sena.financetracker.viewmodel.CashflowBarItem
 import kotlin.math.max
 
+/**
+ * Komponen kartu grafik arus kas (Cashflow) bulanan dengan gaya Neobrutalisme.
+ *
+ * Menampilkan perbandingan pemasukan (income) dan pengeluaran (expense) dalam bentuk diagram
+ * batang bersebelahan, dilengkapi dengan garis batas maksimum (horizontal dashed gridline),
+ * indikator teks skala tertinggi (safeMax), serta label nominal ringkas di atas setiap batang.
+ *
+ * @param cashflowBars Daftar data batang arus kas ([CashflowBarItem]) per bulan/periode.
+ */
 @Composable
 fun CashflowChartCard(
     cashflowBars: List<CashflowBarItem>
@@ -145,12 +155,40 @@ fun CashflowChartCard(
                             isAntiAlias = true
                         }
 
+                        // Paint teks Neobrutalisme untuk label skala nilai maksimum
+                        val scaleTextPaint = android.graphics.Paint().apply {
+                            color = android.graphics.Color.DKGRAY
+                            textSize = 8.5.sp.toPx()
+                            typeface = android.graphics.Typeface.create(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
+                            textAlign = android.graphics.Paint.Align.RIGHT
+                            isAntiAlias = true
+                        }
+
                         // Garis dasar horizontal hitam
                         drawLine(
                             color = Color.Black,
                             start = Offset(0f, canvasHeight),
                             end = Offset(canvasWidth, canvasHeight),
                             strokeWidth = 2.dp.toPx()
+                        )
+
+                        // Garis batas nilai maksimum (gridline horizontal dashed line)
+                        val maxLineY = canvasHeight - maxBarHeight
+                        drawLine(
+                            color = Color.Black.copy(alpha = 0.25f),
+                            start = Offset(0f, maxLineY),
+                            end = Offset(canvasWidth, maxLineY),
+                            strokeWidth = 1.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                        )
+
+                        // Teks label skala maksimum di pojok kanan atas di atas gridline
+                        val maxScaleText = "Maks: " + formatCompactAmount(safeMax)
+                        drawContext.canvas.nativeCanvas.drawText(
+                            maxScaleText,
+                            canvasWidth - 2.dp.toPx(),
+                            maxLineY - 4.dp.toPx(),
+                            scaleTextPaint
                         )
 
                         cashflowBars.forEachIndexed { index, item ->
