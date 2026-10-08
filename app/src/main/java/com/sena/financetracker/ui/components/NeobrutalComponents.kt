@@ -90,8 +90,7 @@ fun NeobrutalCard(
 
 /**
  * Strict Neobrutalism Button:
- * - Yellow #FAFF00 (or custom color)
- * - Sharp rectangular corners
+ * - Solid fill dengan latar kontras tinggi (RetroYellow saat aktif, slate bersih saat disabled)
  * - Bold black border
  * - Hard black drop shadow
  */
@@ -100,6 +99,7 @@ fun NeobrutalButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     backgroundColor: Color = RetroYellow,
+    disabledBackgroundColor: Color = Color(0xFFE2E8F0),
     borderWidth: Dp = 2.dp,
     shadowOffset: Dp = 4.dp,
     shadowColor: Color = Color.Black,
@@ -118,7 +118,7 @@ fun NeobrutalButton(
         )
         Box(
             modifier = Modifier
-                .background(if (enabled) backgroundColor else Color.LightGray, RectangleShape)
+                .background(if (enabled) backgroundColor else disabledBackgroundColor, RectangleShape)
                 .border(borderWidth, Color.Black, RectangleShape)
                 .clickable(enabled = enabled, onClick = onClick)
                 .padding(contentPadding),

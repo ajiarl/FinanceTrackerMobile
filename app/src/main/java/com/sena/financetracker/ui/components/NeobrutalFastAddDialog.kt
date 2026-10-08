@@ -529,6 +529,7 @@ fun NeobrutalFastAddDialog(
                         },
                         enabled = isValid,
                         backgroundColor = RetroYellow,
+                        disabledBackgroundColor = Color(0xFFE2E8F0),
                         borderWidth = 3.dp,
                         shadowOffset = 4.dp,
                         modifier = Modifier.fillMaxWidth()
@@ -544,7 +545,7 @@ fun NeobrutalFastAddDialog(
                                     fontWeight = FontWeight.Black,
                                     fontSize = 14.sp,
                                     letterSpacing = 2.sp,
-                                    color = if (isValid) Color.Black else Color(0xFF64748B)
+                                    color = if (isValid) Color.Black else Color(0xFF0F172A)
                                 )
                             )
                         }

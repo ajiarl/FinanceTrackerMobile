@@ -40,8 +40,9 @@ import kotlin.math.max
  * Menampilkan perbandingan pemasukan (income) dan pengeluaran (expense) dalam bentuk diagram
  * batang bersebelahan, dilengkapi dengan header bertumpuk anti-truncation (judul di atas dan
  * legenda di bawah), garis batas maksimum (horizontal dashed gridline), indikator teks skala
- * tertinggi (safeMax), serta label nominal ringkas dengan algoritma deteksi dan penghindaran tabrakan
- * (smart collision detection & vertical staggering) agar teks angka tidak bertumpuk/kabur.
+ * tertinggi (safeMax), serta label nominal ringkas terkoordinasi warna (hijau gelap untuk income
+ * dan merah gelap untuk expense) dengan pemisahan ruang horizontal individual per batang
+ * untuk mengeliminasi sepenuhnya angka bertumpuk atau dobel.
  *
  * @param cashflowBars Daftar data batang arus kas ([CashflowBarItem]) per bulan/periode.
  */
@@ -163,12 +164,22 @@ fun CashflowChartCard(
                         val barGroupCount = cashflowBars.size
                         val groupWidth = canvasWidth / barGroupCount
                         val barWidth = 13.dp.toPx()
-                        val barSpacing = 6.dp.toPx()
+                        // Ruang antar batang dalam satu bulan (cukup lebar agar label masing-masing batang memiliki ruang horizontal sendiri)
+                        val barSpacing = (groupWidth * 0.18f).coerceIn(12.dp.toPx(), 18.dp.toPx())
 
-                        // Paint teks Neobrutalisme untuk label nilai ringkas di atas batang
-                        val textPaint = android.graphics.Paint().apply {
-                            color = android.graphics.Color.BLACK
-                            textSize = 8.sp.toPx()
+                        // Paint teks Neobrutalisme untuk label pemasukan (Income - deep green emerald)
+                        val incomeTextPaint = android.graphics.Paint().apply {
+                            color = android.graphics.Color.parseColor("#065F46")
+                            textSize = 8.5.sp.toPx()
+                            typeface = android.graphics.Typeface.create(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
+                            textAlign = android.graphics.Paint.Align.CENTER
+                            isAntiAlias = true
+                        }
+
+                        // Paint teks Neobrutalisme untuk label pengeluaran (Expense - deep retro dark red)
+                        val expenseTextPaint = android.graphics.Paint().apply {
+                            color = android.graphics.Color.parseColor("#991B1B")
+                            textSize = 8.5.sp.toPx()
                             typeface = android.graphics.Typeface.create(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
                             textAlign = android.graphics.Paint.Align.CENTER
                             isAntiAlias = true
@@ -209,6 +220,9 @@ fun CashflowChartCard(
                             maxLineY - 4.dp.toPx(),
                             scaleTextPaint
                         )
+
+                        // Ambang batas nominal minimal (abaikan nilai < 1% dari nilai maksimum agar tidak membuat label hantu / tumpukan 0)
+                        val minLabelThreshold = safeMax * 0.01
 
                         cashflowBars.forEachIndexed { index, item ->
                             val groupCenterX = (index * groupWidth) + (groupWidth / 2)
@@ -273,43 +287,67 @@ fun CashflowChartCard(
                             val incomeBarCenterX = incomeBarX + (barWidth / 2f)
                             val expenseBarCenterX = expenseBarX + (barWidth / 2f)
 
-                            // Deteksi tabrakan label jika kedua batang aktif dan ketinggiannya berdekatan
-                            val isCollisionRisk = hasIncome && hasExpense &&
-                                kotlin.math.abs(incomeTopY - expenseTopY) < 14.dp.toPx()
+                            val canShowIncomeLabel = hasIncome && item.income >= minLabelThreshold
+                            val canShowExpenseLabel = hasExpense && item.expense >= minLabelThreshold
 
-                            // Teks angka nominal ringkas di atas batang income jika nilai > 0
-                            if (hasIncome) {
+                            if (canShowIncomeLabel && canShowExpenseLabel) {
                                 val incomeText = formatCompactAmount(item.income)
-                                val xPos = if (isCollisionRisk) incomeBarCenterX - 2.dp.toPx() else incomeBarCenterX
-                                val yPos = if (isCollisionRisk && incomeHeight >= expenseHeight) {
-                                    incomeTopY - 14.dp.toPx()
-                                } else {
-                                    incomeTopY - 4.dp.toPx()
-                                }
+                                val expenseText = formatCompactAmount(item.expense)
+                                val incomeTextWidth = incomeTextPaint.measureText(incomeText)
+                                val expenseTextWidth = expenseTextPaint.measureText(expenseText)
 
+                                val incomeRightEdge = incomeBarCenterX + (incomeTextWidth / 2f)
+                                val expenseLeftEdge = expenseBarCenterX - (expenseTextWidth / 2f)
+                                val isHorizontalColliding = (incomeRightEdge + 3.dp.toPx()) > expenseLeftEdge
+
+                                if (isHorizontalColliding) {
+                                    // Jika bertabrakan secara horizontal karena ruang sempit, tampilkan HANYA nilai yang dominan (lebih besar)
+                                    // tepat di atas batangnya sendiri untuk mengeliminasi sepenuhnya kesan angka dobel / menumpuk vertikal.
+                                    if (item.income >= item.expense) {
+                                        drawContext.canvas.nativeCanvas.drawText(
+                                            incomeText,
+                                            incomeBarCenterX,
+                                            incomeTopY - 4.dp.toPx(),
+                                            incomeTextPaint
+                                        )
+                                    } else {
+                                        drawContext.canvas.nativeCanvas.drawText(
+                                            expenseText,
+                                            expenseBarCenterX,
+                                            expenseTopY - 4.dp.toPx(),
+                                            expenseTextPaint
+                                        )
+                                    }
+                                } else {
+                                    // Ruang horizontal cukup: gambar masing-masing label tepat di atas batangnya sendiri
+                                    drawContext.canvas.nativeCanvas.drawText(
+                                        incomeText,
+                                        incomeBarCenterX,
+                                        incomeTopY - 4.dp.toPx(),
+                                        incomeTextPaint
+                                    )
+                                    drawContext.canvas.nativeCanvas.drawText(
+                                        expenseText,
+                                        expenseBarCenterX,
+                                        expenseTopY - 4.dp.toPx(),
+                                        expenseTextPaint
+                                    )
+                                }
+                            } else if (canShowIncomeLabel) {
+                                val incomeText = formatCompactAmount(item.income)
                                 drawContext.canvas.nativeCanvas.drawText(
                                     incomeText,
-                                    xPos,
-                                    yPos,
-                                    textPaint
+                                    incomeBarCenterX,
+                                    incomeTopY - 4.dp.toPx(),
+                                    incomeTextPaint
                                 )
-                            }
-
-                            // Teks angka nominal ringkas di atas batang expense jika nilai > 0
-                            if (hasExpense) {
+                            } else if (canShowExpenseLabel) {
                                 val expenseText = formatCompactAmount(item.expense)
-                                val xPos = if (isCollisionRisk) expenseBarCenterX + 2.dp.toPx() else expenseBarCenterX
-                                val yPos = if (isCollisionRisk && expenseHeight > incomeHeight) {
-                                    expenseTopY - 14.dp.toPx()
-                                } else {
-                                    expenseTopY - 4.dp.toPx()
-                                }
-
                                 drawContext.canvas.nativeCanvas.drawText(
                                     expenseText,
-                                    xPos,
-                                    yPos,
-                                    textPaint
+                                    expenseBarCenterX,
+                                    expenseTopY - 4.dp.toPx(),
+                                    expenseTextPaint
                                 )
                             }
                         }
