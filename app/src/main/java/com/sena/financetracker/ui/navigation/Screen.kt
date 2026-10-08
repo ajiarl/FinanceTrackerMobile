@@ -90,5 +90,13 @@ sealed class Screen(
                 Reports
             )
         }
+
+        /**
+         * Himpunan nama rute string unik untuk 5 tab bottom navigation utama.
+         * Digunakan untuk pengecekan O(1) cepat guna mengeliminasi overhead alokasi saat navigasi.
+         */
+        val bottomNavRoutes: Set<String> by lazy {
+            bottomNavItems.map { it.route }.toSet()
+        }
     }
 }

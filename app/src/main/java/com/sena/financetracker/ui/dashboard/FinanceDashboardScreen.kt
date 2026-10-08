@@ -1,5 +1,7 @@
 package com.sena.financetracker.ui.dashboard
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -206,7 +208,7 @@ fun FinanceDashboardContent(
             modifier = Modifier.fillMaxSize(),
             containerColor = RetroCanvas,
             bottomBar = {
-                if (currentRoute in Screen.bottomNavItems.map { it.route }) {
+                if (currentRoute in Screen.bottomNavRoutes) {
                     NeobrutalBottomNav(
                         currentRoute = currentRoute,
                         onTabSelected = { targetScreen ->
@@ -238,10 +240,18 @@ fun FinanceDashboardContent(
             NavHost(
                 navController = navController,
                 startDestination = Screen.Dashboard.route,
-                modifier = Modifier.padding(innerPadding)
+                modifier = Modifier.padding(innerPadding),
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                popEnterTransition = { EnterTransition.None },
+                popExitTransition = { ExitTransition.None }
             ) {
-            // Tab 1: Beranda
-            composable(Screen.Dashboard.route) {
+            // Tab 1: Beranda (Instant Snappy Navigation)
+            composable(
+                route = Screen.Dashboard.route,
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None }
+            ) {
                 HomeScreen(
                     uiState = uiState,
                     onTransferClick = { showTransferDialog = true },
@@ -265,8 +275,12 @@ fun FinanceDashboardContent(
                 )
             }
 
-            // Tab 2: Transaksi
-            composable(Screen.Transactions.route) {
+            // Tab 2: Transaksi (Instant Snappy Navigation)
+            composable(
+                route = Screen.Transactions.route,
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None }
+            ) {
                 TransactionsScreen(
                     uiState = uiState,
                     onFilterTabSelected = onFilterTabSelected,
@@ -280,8 +294,12 @@ fun FinanceDashboardContent(
                 )
             }
 
-            // Tab 3: Anggaran
-            composable(Screen.Budgets.route) {
+            // Tab 3: Anggaran (Instant Snappy Navigation)
+            composable(
+                route = Screen.Budgets.route,
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None }
+            ) {
                 BudgetsScreen(
                     uiState = uiState,
                     onAddBudgetClick = { showAddBudgetDialog = true },
@@ -292,8 +310,12 @@ fun FinanceDashboardContent(
                 )
             }
 
-            // Tab 4: Akun & Rekening
-            composable(Screen.Accounts.route) {
+            // Tab 4: Akun & Rekening (Instant Snappy Navigation)
+            composable(
+                route = Screen.Accounts.route,
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None }
+            ) {
                 AccountsScreen(
                     uiState = uiState,
                     onAddAccountClick = { showAddAccountDialog = true },
@@ -305,8 +327,12 @@ fun FinanceDashboardContent(
                 )
             }
 
-            // Tab 5: Laporan & Grafik Analisis
-            composable(Screen.Reports.route) {
+            // Tab 5: Laporan & Grafik Analisis (Instant Snappy Navigation)
+            composable(
+                route = Screen.Reports.route,
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None }
+            ) {
                 ReportsScreen(
                     uiState = uiState,
                     onPresetSelected = onReportsPresetSelected,

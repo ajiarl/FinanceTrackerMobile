@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 
 // ── Strict Neobrutalism Color Palette ─────────────────────────────────────────
 val RetroYellow = Color(0xFFFAFF00)
+val RetroCyberMint = Color(0xFF00F0FF)
 val RetroIncomeGreen = Color(0xFF00E676)
 val RetroIncomeDarkGreen = Color(0xFF00A878)
 val RetroExpenseRed = Color(0xFFFF3B30)
