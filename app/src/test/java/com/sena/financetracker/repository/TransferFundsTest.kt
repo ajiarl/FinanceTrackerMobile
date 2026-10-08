@@ -135,6 +135,155 @@ class TransferFundsTest {
         assertTrue(fakeTransactionDao.transactions.isEmpty())
     }
 
+    @Test
+    fun `deleteTransaction by id with TRANSFER type reverts both accounts`() = runBlocking {
+        repository.transferFunds(
+            fromAccount = accountBca,
+            toAccount = accountGopay,
+            amount = 150000.0,
+            notes = "Test revert by ID",
+            date = "2026-10-07"
+        )
+
+        val tx = fakeTransactionDao.transactions.first()
+        assertEquals(850000.0, fakeAccountDao.getAccountById(1L)!!.balance, 0.001)
+        assertEquals(400000.0, fakeAccountDao.getAccountById(2L)!!.balance, 0.001)
+
+        // Delete by ID
+        repository.deleteTransaction(tx.id)
+
+        // Balances should be reverted
+        assertEquals(1000000.0, fakeAccountDao.getAccountById(1L)!!.balance, 0.001)
+        assertEquals(250000.0, fakeAccountDao.getAccountById(2L)!!.balance, 0.001)
+        assertTrue(fakeTransactionDao.transactions.isEmpty())
+    }
+
+    @Test
+    fun `updateTransaction modifies transfer amount and adjusts both accounts accurately`() = runBlocking {
+        repository.transferFunds(
+            fromAccount = accountBca,
+            toAccount = accountGopay,
+            amount = 100000.0,
+            notes = "Transfer Awal",
+            date = "2026-10-07"
+        )
+
+        val oldTx = fakeTransactionDao.transactions.first()
+        assertEquals(900000.0, fakeAccountDao.getAccountById(1L)!!.balance, 0.001)
+        assertEquals(350000.0, fakeAccountDao.getAccountById(2L)!!.balance, 0.001)
+
+        // Update amount from 100k to 250k
+        val updatedTx = oldTx.copy(amount = 250000.0)
+        repository.updateTransaction(oldTx, updatedTx)
+
+        // BCA should be 1M - 250k = 750k
+        assertEquals(750000.0, fakeAccountDao.getAccountById(1L)!!.balance, 0.001)
+        // GoPay should be 250k + 250k = 500k
+        assertEquals(500000.0, fakeAccountDao.getAccountById(2L)!!.balance, 0.001)
+
+        val currentSavedTx = fakeTransactionDao.transactions.first()
+        assertEquals(250000.0, currentSavedTx.amount, 0.001)
+    }
+
+    @Test
+    fun `updateTransaction changes transfer destination account and adjusts balances across all three accounts`() = runBlocking {
+        val accountMandiri = AccountEntity(id = 3L, name = "Mandiri", type = "bank", balance = 500000.0)
+        fakeAccountDao.insertAccount(accountMandiri)
+
+        repository.transferFunds(
+            fromAccount = accountBca,
+            toAccount = accountGopay,
+            amount = 100000.0,
+            notes = "Transfer BCA ke GoPay",
+            date = "2026-10-07"
+        )
+
+        val oldTx = fakeTransactionDao.transactions.first()
+        // BCA: 900k, GoPay: 350k, Mandiri: 500k
+        assertEquals(900000.0, fakeAccountDao.getAccountById(1L)!!.balance, 0.001)
+        assertEquals(350000.0, fakeAccountDao.getAccountById(2L)!!.balance, 0.001)
+        assertEquals(500000.0, fakeAccountDao.getAccountById(3L)!!.balance, 0.001)
+
+        // Change destination from GoPay (id 2) to Mandiri (id 3)
+        val updatedTx = oldTx.copy(
+            toAccountId = 3L,
+            toAccountName = "Mandiri"
+        )
+        repository.updateTransaction(oldTx, updatedTx)
+
+        // BCA remains deducted by 100k (900k)
+        assertEquals(900000.0, fakeAccountDao.getAccountById(1L)!!.balance, 0.001)
+        // GoPay reverts to original 250k
+        assertEquals(250000.0, fakeAccountDao.getAccountById(2L)!!.balance, 0.001)
+        // Mandiri receives 100k -> 600k
+        assertEquals(600000.0, fakeAccountDao.getAccountById(3L)!!.balance, 0.001)
+    }
+
+    @Test
+    fun `updateTransaction changing from TRANSFER to EXPENSE properly restores destination account balance`() = runBlocking {
+        repository.transferFunds(
+            fromAccount = accountBca,
+            toAccount = accountGopay,
+            amount = 100000.0,
+            notes = "Transfer salah ketik",
+            date = "2026-10-07"
+        )
+
+        val oldTx = fakeTransactionDao.transactions.first()
+        // BCA: 900k, GoPay: 350k
+        assertEquals(900000.0, fakeAccountDao.getAccountById(1L)!!.balance, 0.001)
+        assertEquals(350000.0, fakeAccountDao.getAccountById(2L)!!.balance, 0.001)
+
+        // Change from TRANSFER 100k to EXPENSE 60k on BCA
+        val expenseTx = oldTx.copy(
+            type = "EXPENSE",
+            amount = 60000.0,
+            category = "Belanja",
+            toAccountId = null,
+            toAccountName = null
+        )
+        repository.updateTransaction(oldTx, expenseTx)
+
+        // GoPay balance must be completely reverted back to 250k
+        assertEquals(250000.0, fakeAccountDao.getAccountById(2L)!!.balance, 0.001)
+        // BCA was 1M, reverted +100k -> 1M, then debited -60k -> 940k
+        assertEquals(940000.0, fakeAccountDao.getAccountById(1L)!!.balance, 0.001)
+    }
+
+    @Test
+    fun `updateTransaction changing from EXPENSE to TRANSFER properly debits source and credits destination`() = runBlocking {
+        // Buat transaksi expense 50k pada BCA
+        val expenseTx = TransactionEntity(
+            id = 1L,
+            title = "Beli Buku",
+            amount = 50000.0,
+            type = "EXPENSE",
+            category = "Pendidikan",
+            date = "2026-10-07",
+            accountId = 1L,
+            accountName = "BCA"
+        )
+        repository.insertTransaction(expenseTx)
+
+        // BCA should be 950k, GoPay should be 250k
+        assertEquals(950000.0, fakeAccountDao.getAccountById(1L)!!.balance, 0.001)
+        assertEquals(250000.0, fakeAccountDao.getAccountById(2L)!!.balance, 0.001)
+
+        // Ubah jadi TRANSFER 80k dari BCA ke GoPay
+        val transferTx = expenseTx.copy(
+            type = "TRANSFER",
+            amount = 80000.0,
+            toAccountId = 2L,
+            toAccountName = "GoPay"
+        )
+        repository.updateTransaction(expenseTx, transferTx)
+
+        // BCA: 1M (setelah revert +50k) - 80k = 920k
+        assertEquals(920000.0, fakeAccountDao.getAccountById(1L)!!.balance, 0.001)
+        // GoPay: 250k + 80k = 330k
+        assertEquals(330000.0, fakeAccountDao.getAccountById(2L)!!.balance, 0.001)
+    }
+
     // Helper fake DAOs
     private class FakeAccountDao(initialAccounts: List<AccountEntity>) : AccountDao {
         private val accountsMap = initialAccounts.associateBy { it.id }.toMutableMap()

@@ -3,7 +3,7 @@ package com.sena.financetracker.data
 import android.database.sqlite.SQLiteDatabase
 
 /**
- * Pengelola migrasi skema database SQLite (evolusi v1 sampai v5).
+ * Pengelola migrasi skema database SQLite (evolusi v1 sampai v6).
  */
 object DatabaseMigrations {
 
@@ -16,6 +16,10 @@ object DatabaseMigrations {
         }
         if (oldVersion < 5) {
             DatabaseSchema.createDatabaseIndexes(db)
+        }
+        if (oldVersion < 6) {
+            db.execSQL("ALTER TABLE ${DatabaseSchema.TABLE_TRANSACTIONS} ADD COLUMN ${DatabaseSchema.COL_TX_TO_ACCOUNT_ID} INTEGER;")
+            db.execSQL("ALTER TABLE ${DatabaseSchema.TABLE_TRANSACTIONS} ADD COLUMN ${DatabaseSchema.COL_TX_TO_ACCOUNT_NAME} TEXT;")
         }
     }
 }

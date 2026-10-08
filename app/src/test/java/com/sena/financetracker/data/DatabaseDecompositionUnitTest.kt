@@ -16,6 +16,8 @@ class DatabaseDecompositionUnitTest {
 
         assertEquals("id", DatabaseSchema.COL_TX_ID)
         assertEquals("amount", DatabaseSchema.COL_TX_AMOUNT)
+        assertEquals("to_account_id", DatabaseSchema.COL_TX_TO_ACCOUNT_ID)
+        assertEquals("to_account_name", DatabaseSchema.COL_TX_TO_ACCOUNT_NAME)
         assertEquals("balance", DatabaseSchema.COL_ACC_BALANCE)
         assertEquals("limit_amount", DatabaseSchema.COL_BUDGET_LIMIT)
         assertEquals("created_at", DatabaseSchema.COL_NOTIF_CREATED_AT)
@@ -36,6 +38,9 @@ class DatabaseDecompositionUnitTest {
         assertEquals(DatabaseSchema.INDEX_TX_ACCOUNT, AppDatabase.INDEX_TX_ACCOUNT)
         assertEquals(DatabaseSchema.INDEX_BUDGETS_CATEGORY, AppDatabase.INDEX_BUDGETS_CATEGORY)
         assertEquals(DatabaseSchema.INDEX_DDL_STATEMENTS, AppDatabase.INDEX_DDL_STATEMENTS)
+
+        assertEquals(DatabaseSchema.COL_TX_TO_ACCOUNT_ID, AppDatabase.COL_TX_TO_ACCOUNT_ID)
+        assertEquals(DatabaseSchema.COL_TX_TO_ACCOUNT_NAME, AppDatabase.COL_TX_TO_ACCOUNT_NAME)
     }
 
     @Test
@@ -49,7 +54,9 @@ class DatabaseDecompositionUnitTest {
             date = "2026-10-08",
             accountId = 2L,
             accountName = "BCA",
-            notes = "Nasi Padang"
+            notes = "Nasi Padang",
+            toAccountId = 3L,
+            toAccountName = "Mandiri"
         )
         val txValues = DatabaseMappers.toContentValues(tx)
         org.junit.Assert.assertNotNull(txValues)

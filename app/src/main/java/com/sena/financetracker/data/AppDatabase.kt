@@ -26,7 +26,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
 
     companion object {
         const val DATABASE_NAME = "finance_tracker.db"
-        const val DATABASE_VERSION = 5
+        const val DATABASE_VERSION = 6
 
         // Delegasi backward-compatible untuk konstanta skema & indeks
         const val INDEX_TX_DATE = DatabaseSchema.INDEX_TX_DATE
@@ -46,6 +46,8 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         const val COL_TX_ACCOUNT_ID = DatabaseSchema.COL_TX_ACCOUNT_ID
         const val COL_TX_ACCOUNT_NAME = DatabaseSchema.COL_TX_ACCOUNT_NAME
         const val COL_TX_NOTES = DatabaseSchema.COL_TX_NOTES
+        const val COL_TX_TO_ACCOUNT_ID = DatabaseSchema.COL_TX_TO_ACCOUNT_ID
+        const val COL_TX_TO_ACCOUNT_NAME = DatabaseSchema.COL_TX_TO_ACCOUNT_NAME
 
         const val TABLE_ACCOUNTS = DatabaseSchema.TABLE_ACCOUNTS
         const val COL_ACC_ID = DatabaseSchema.COL_ACC_ID

@@ -66,7 +66,7 @@ fun NeobrutalFastAddDialog(
         notes: String
     ) -> Unit
 ) {
-    var selectedType by remember { mutableStateOf("EXPENSE") } // "EXPENSE", "INCOME", "TRANSFER"
+    var selectedType by remember { mutableStateOf("EXPENSE") } // "EXPENSE", "INCOME"
     var title by remember { mutableStateOf("") }
     var amountText by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
@@ -185,8 +185,7 @@ fun NeobrutalFastAddDialog(
                         ) {
                             val types = listOf(
                                 Triple("EXPENSE", stringResource(R.string.filter_type_expense), RetroExpenseRed),
-                                Triple("INCOME", stringResource(R.string.filter_type_income), RetroIncomeGreen),
-                                Triple("TRANSFER", "TRF", RetroTransferBlue)
+                                Triple("INCOME", stringResource(R.string.filter_type_income), RetroIncomeGreen)
                             )
                             types.forEachIndexed { index, (typeKey, typeLabel, activeColor) ->
                                 val isSelected = selectedType == typeKey

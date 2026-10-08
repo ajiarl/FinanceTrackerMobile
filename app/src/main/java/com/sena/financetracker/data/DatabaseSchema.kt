@@ -31,6 +31,8 @@ object DatabaseSchema {
     const val COL_TX_ACCOUNT_ID = "account_id"
     const val COL_TX_ACCOUNT_NAME = "account_name"
     const val COL_TX_NOTES = "notes"
+    const val COL_TX_TO_ACCOUNT_ID = "to_account_id"
+    const val COL_TX_TO_ACCOUNT_NAME = "to_account_name"
 
     // Table Accounts
     const val TABLE_ACCOUNTS = "accounts"
@@ -102,7 +104,9 @@ object DatabaseSchema {
                 $COL_TX_DATE TEXT NOT NULL,
                 $COL_TX_ACCOUNT_ID INTEGER NOT NULL DEFAULT 1,
                 $COL_TX_ACCOUNT_NAME TEXT NOT NULL DEFAULT 'Dompet Tunai',
-                $COL_TX_NOTES TEXT DEFAULT ''
+                $COL_TX_NOTES TEXT DEFAULT '',
+                $COL_TX_TO_ACCOUNT_ID INTEGER,
+                $COL_TX_TO_ACCOUNT_NAME TEXT
             )
             """.trimIndent()
         )

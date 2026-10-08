@@ -30,6 +30,8 @@ import com.sena.financetracker.data.DatabaseSchema.COL_TX_DATE
 import com.sena.financetracker.data.DatabaseSchema.COL_TX_ID
 import com.sena.financetracker.data.DatabaseSchema.COL_TX_NOTES
 import com.sena.financetracker.data.DatabaseSchema.COL_TX_TITLE
+import com.sena.financetracker.data.DatabaseSchema.COL_TX_TO_ACCOUNT_ID
+import com.sena.financetracker.data.DatabaseSchema.COL_TX_TO_ACCOUNT_NAME
 import com.sena.financetracker.data.DatabaseSchema.COL_TX_TYPE
 
 /**
@@ -41,6 +43,11 @@ object DatabaseMappers {
         val accIdIdx = c.getColumnIndex(COL_TX_ACCOUNT_ID)
         val accNameIdx = c.getColumnIndex(COL_TX_ACCOUNT_NAME)
         val notesIdx = c.getColumnIndex(COL_TX_NOTES)
+        val toAccIdIdx = c.getColumnIndex(COL_TX_TO_ACCOUNT_ID)
+        val toAccNameIdx = c.getColumnIndex(COL_TX_TO_ACCOUNT_NAME)
+
+        val toAccountId = if (toAccIdIdx != -1 && !c.isNull(toAccIdIdx)) c.getLong(toAccIdIdx) else null
+        val toAccountName = if (toAccNameIdx != -1 && !c.isNull(toAccNameIdx)) c.getString(toAccNameIdx) else null
 
         return TransactionEntity(
             id = c.getLong(c.getColumnIndexOrThrow(COL_TX_ID)),
@@ -51,7 +58,9 @@ object DatabaseMappers {
             date = c.getString(c.getColumnIndexOrThrow(COL_TX_DATE)),
             accountId = if (accIdIdx != -1) c.getLong(accIdIdx) else 1L,
             accountName = if (accNameIdx != -1) c.getString(accNameIdx) else "Dompet Tunai",
-            notes = if (notesIdx != -1) c.getString(notesIdx) ?: "" else ""
+            notes = if (notesIdx != -1) c.getString(notesIdx) ?: "" else "",
+            toAccountId = toAccountId,
+            toAccountName = toAccountName
         )
     }
 
@@ -64,6 +73,8 @@ object DatabaseMappers {
         put(COL_TX_ACCOUNT_ID, tx.accountId)
         put(COL_TX_ACCOUNT_NAME, tx.accountName)
         put(COL_TX_NOTES, tx.notes)
+        put(COL_TX_TO_ACCOUNT_ID, tx.toAccountId)
+        put(COL_TX_TO_ACCOUNT_NAME, tx.toAccountName)
     }
 
     fun mapAccount(c: Cursor): AccountEntity {

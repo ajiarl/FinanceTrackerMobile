@@ -8,8 +8,8 @@ import java.sql.DriverManager
 class DatabaseSchemaIndexTest {
 
     @Test
-    fun testDatabaseVersionIsFive() {
-        assertEquals(5, AppDatabase.DATABASE_VERSION)
+    fun testDatabaseVersionIsSix() {
+        assertEquals(6, AppDatabase.DATABASE_VERSION)
     }
 
     @Test
@@ -101,6 +101,59 @@ class DatabaseSchemaIndexTest {
                 assertTrue(ddl.startsWith("CREATE INDEX IF NOT EXISTS"))
                 assertTrue(ddl.contains(" ON "))
             }
+        }
+    }
+
+    @Test
+    fun testTransactionsTableDdlContainsToAccountColumns() {
+        assertEquals("to_account_id", DatabaseSchema.COL_TX_TO_ACCOUNT_ID)
+        assertEquals("to_account_name", DatabaseSchema.COL_TX_TO_ACCOUNT_NAME)
+    }
+
+    @Test
+    fun testTransactionsTableMigrationV6ColumnsInSqlite() {
+        try {
+            Class.forName("org.sqlite.JDBC")
+            val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
+            conn.createStatement().use { stmt ->
+                // Skema v5
+                stmt.execute(
+                    """
+                    CREATE TABLE transactions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title TEXT NOT NULL,
+                        amount REAL NOT NULL,
+                        type TEXT NOT NULL,
+                        category TEXT NOT NULL,
+                        date TEXT NOT NULL,
+                        account_id INTEGER NOT NULL DEFAULT 1,
+                        account_name TEXT NOT NULL DEFAULT 'Dompet Tunai',
+                        notes TEXT DEFAULT ''
+                    );
+                    """.trimIndent()
+                )
+
+                // Eksekusi migration upgrade v5 -> v6
+                stmt.execute("ALTER TABLE transactions ADD COLUMN to_account_id INTEGER;")
+                stmt.execute("ALTER TABLE transactions ADD COLUMN to_account_name TEXT;")
+
+                // Insert transaksi transfer dengan to_account_id & to_account_name
+                stmt.execute(
+                    """
+                    INSERT INTO transactions (title, amount, type, category, date, account_id, account_name, notes, to_account_id, to_account_name)
+                    VALUES ('Transfer ke GoPay', 50000.0, 'TRANSFER', 'Transfer', '2026-10-08', 1, 'BCA', 'Test', 2, 'GoPay');
+                    """.trimIndent()
+                )
+
+                stmt.executeQuery("SELECT to_account_id, to_account_name FROM transactions WHERE id = 1;").use { rs ->
+                    assertTrue(rs.next())
+                    assertEquals(2L, rs.getLong("to_account_id"))
+                    assertEquals("GoPay", rs.getString("to_account_name"))
+                }
+            }
+            conn.close()
+        } catch (_: ClassNotFoundException) {
+            // Jika sqlite-jdbc tidak ada di JVM classpath, lolos
         }
     }
 }

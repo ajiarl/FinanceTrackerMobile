@@ -122,7 +122,14 @@ class TransactionRepository(
         }
     }
 
-    suspend fun deleteTransaction(id: Long) = transactionDao.deleteTransaction(id)
+    suspend fun deleteTransaction(id: Long) {
+        val tx = transactionDao.getTransactionById(id)
+        if (tx != null) {
+            deleteTransaction(tx)
+        } else {
+            transactionDao.deleteTransaction(id)
+        }
+    }
 
     suspend fun resetTransactions() = transactionDao.clearAllTransactions()
 
@@ -133,13 +140,22 @@ class TransactionRepository(
 
         val deltasByAccount = mutableMapOf<Long, Double>()
         for (tx in transactions) {
-            val delta = if (tx.type.equals("INCOME", ignoreCase = true)) {
-                tx.amount
+            if (tx.type.equals("TRANSFER", ignoreCase = true)) {
+                val currentFrom = deltasByAccount.getOrDefault(tx.accountId, 0.0)
+                deltasByAccount[tx.accountId] = currentFrom - tx.amount
+                tx.toAccountId?.let { toId ->
+                    val currentTo = deltasByAccount.getOrDefault(toId, 0.0)
+                    deltasByAccount[toId] = currentTo + tx.amount
+                }
             } else {
-                -tx.amount
+                val delta = if (tx.type.equals("INCOME", ignoreCase = true)) {
+                    tx.amount
+                } else {
+                    -tx.amount
+                }
+                val current = deltasByAccount.getOrDefault(tx.accountId, 0.0)
+                deltasByAccount[tx.accountId] = current + delta
             }
-            val current = deltasByAccount.getOrDefault(tx.accountId, 0.0)
-            deltasByAccount[tx.accountId] = current + delta
         }
 
         deltasByAccount.forEach { (accountId, totalDelta) ->
@@ -154,22 +170,49 @@ class TransactionRepository(
         return ids
     }
 
+    /**
+     * Memperbarui transaksi dan menyesuaikan saldo rekening secara konsisten.
+     * Mendukung perubahan jenis transaksi antara INCOME, EXPENSE, dan TRANSFER secara atomik dan akurat.
+     *
+     * @param oldTransaction Data transaksi sebelum pembaruan (digunakan untuk membatalkan mutasi saldo lama).
+     * @param newTransaction Data transaksi baru yang akan disimpan dan diterapkan mutasi saldonya.
+     */
     suspend fun updateTransaction(oldTransaction: TransactionEntity, newTransaction: TransactionEntity) {
         transactionDao.updateTransaction(newTransaction)
 
-        val oldDelta = if (oldTransaction.type.equals("INCOME", ignoreCase = true)) {
-            -oldTransaction.amount
+        // 1. Batalkan mutasi saldo transaksi lama
+        if (oldTransaction.type.equals("TRANSFER", ignoreCase = true)) {
+            accountDao.adjustBalance(oldTransaction.accountId, oldTransaction.amount)
+            oldTransaction.toAccountId?.let { toId ->
+                accountDao.adjustBalance(toId, -oldTransaction.amount)
+            }
         } else {
-            oldTransaction.amount
+            val oldDelta = if (oldTransaction.type.equals("INCOME", ignoreCase = true)) {
+                -oldTransaction.amount
+            } else {
+                oldTransaction.amount
+            }
+            accountDao.adjustBalance(oldTransaction.accountId, oldDelta)
         }
-        accountDao.adjustBalance(oldTransaction.accountId, oldDelta)
 
-        val newDelta = if (newTransaction.type.equals("INCOME", ignoreCase = true)) {
-            newTransaction.amount
+        // 2. Terapkan mutasi saldo transaksi baru
+        if (newTransaction.type.equals("TRANSFER", ignoreCase = true)) {
+            accountDao.adjustBalance(newTransaction.accountId, -newTransaction.amount)
+            newTransaction.toAccountId?.let { toId ->
+                accountDao.adjustBalance(toId, newTransaction.amount)
+            }
         } else {
-            -newTransaction.amount
+            val newDelta = if (newTransaction.type.equals("INCOME", ignoreCase = true)) {
+                newTransaction.amount
+            } else {
+                -newTransaction.amount
+            }
+            accountDao.adjustBalance(newTransaction.accountId, newDelta)
+
+            if (newTransaction.type.equals("EXPENSE", ignoreCase = true)) {
+                budgetHandler.checkAndTriggerBudgetAlert(newTransaction)
+            }
         }
-        accountDao.adjustBalance(newTransaction.accountId, newDelta)
     }
 
     suspend fun updateTransaction(newTransaction: TransactionEntity) {
