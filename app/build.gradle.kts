@@ -25,7 +25,7 @@ android {
     defaultConfig {
         applicationId = "com.sena.financetracker"
         minSdk = 24
-        targetSdk = 37
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 

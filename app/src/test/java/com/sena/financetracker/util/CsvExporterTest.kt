@@ -110,4 +110,43 @@ class CsvExporterTest {
         assertEquals("\"Text with \"\"quote\"\"\"", CsvExporter.escapeCsvCell("Text with \"quote\""))
         assertEquals("\"Line1\nLine2\"", CsvExporter.escapeCsvCell("Line1\nLine2"))
     }
+
+    @Test
+    fun testCsvFormulaInjectionSanitization() {
+        // DDE injection prefixes: =, +, -, @, \t, 
+        assertEquals("'=CMD|' /C calc'!A0", CsvExporter.escapeCsvCell("=CMD|' /C calc'!A0"))
+        assertEquals("'+1234", CsvExporter.escapeCsvCell("+1234"))
+        assertEquals("'-5678", CsvExporter.escapeCsvCell("-5678"))
+        assertEquals("'@SUM(A1:A10)", CsvExporter.escapeCsvCell("@SUM(A1:A10)"))
+        assertEquals("'\tTAB_VAL", CsvExporter.escapeCsvCell("\tTAB_VAL"))
+        
+        // Formula injection yang memuat tanda koma juga harus di-quote RFC 4180
+        assertEquals("\"'=SUM(A1, B1)\"", CsvExporter.escapeCsvCell("=SUM(A1, B1)"))
+    }
+
+    @Test
+    fun testExportTransactionsWithFormulaInjectionPayloads() {
+        val maliciousTransactions = listOf(
+            TransactionEntity(
+                id = 999,
+                title = "=CMD|' /C calc'!A0",
+                amount = 100000.0,
+                type = "EXPENSE",
+                category = "@AdminAction",
+                date = "2026-10-08",
+                accountId = 1,
+                accountName = "BCA",
+                notes = "+628123456789"
+            )
+        )
+
+        val csv = CsvExporter.generateTransactionsCsv(maliciousTransactions)
+        val lines = csv.trim().split("\n")
+
+        assertEquals(2, lines.size)
+        // Kolom Judul (=CMD...), Kategori (@AdminAction), dan Catatan (+628...) harus diawali petik tunggal (')
+        assertTrue(lines[1].contains("'=CMD|' /C calc'!A0"))
+        assertTrue(lines[1].contains("'@AdminAction"))
+        assertTrue(lines[1].contains("'+628123456789"))
+    }
 }

@@ -78,18 +78,36 @@ object CsvExporter {
     }
 
     /**
-     * Meng-escape string nilai sel CSV sesuai standar RFC 4180.
-     * Jika memuat tanda koma, kutip ganda, atau baris baru, sel akan dibungkus kutip ganda
-     * dan tanda kutip di dalamnya digandakan (" -> "").
+     * Karakter berisiko eksekusi formula spreadsheet / Dynamic Data Exchange (DDE).
      */
-    fun escapeCsvCell(value: String): String {
-        val needsQuotes = value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")
-        return if (needsQuotes) {
-            "\"" + value.replace("\"", "\"\"") + "\""
-        } else {
-            value
-        }
-    }
+     private val FORMULA_CHARS = charArrayOf('=', '+', '-', '@', '\u0009', '\u000D')
+
+    /**
+     * Meng-escape string nilai sel CSV sesuai standar RFC 4180 serta memitigasi
+     * celah keamanan CSV Formula Injection (DDE / OWASP CSV Injection).
+     *
+     * Jika string diawali dengan karakter risiko formula (`=`, `+`, `-`, `@`, tab, CR),
+     * nilai akan diawali dengan tanda petik tunggal (`'`) agar spreadsheet (Excel/Calc)
+     * memperlakukannya secara ketat sebagai teks polos alih-alih mengeksekusi formula atau macro.
+     * Selanjutnya, jika memuat tanda koma, kutip ganda, atau baris baru, sel akan dibungkus
+     * tanda kutip ganda dan tanda kutip internal di dalamnya digandakan (`" -> ""`).
+     *
+     * @param value Nilai mentah sel teks yang akan diekspor.
+     * @return String nilai sel yang telah disanitasi dan di-escape.
+      */
+     fun escapeCsvCell(value: String): String {
+         val sanitized = if (value.isNotEmpty() && value.first() in FORMULA_CHARS) {
+             "'$value"
+         } else {
+             value
+         }
+         val needsQuotes = sanitized.contains(",") || sanitized.contains("\"") || sanitized.contains("\n") || sanitized.contains("\u000D")
+         return if (needsQuotes) {
+             "\"" + sanitized.replace("\"", "\"\"") + "\""
+         } else {
+             sanitized
+         }
+     }
 
     /**
      * Menulis konten CSV ke cache direktori `exports/` dan meluncurkan native Android Share Sheet

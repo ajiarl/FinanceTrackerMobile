@@ -28,7 +28,8 @@ class TransactionRepository(
     val categoryDao: CategoryDao,
     val budgetDao: BudgetDao = createDefaultBudgetDao(),
     val notificationDao: NotificationDao = createDefaultNotificationDao(),
-    private val preferences: android.content.SharedPreferences? = null
+    private val preferences: android.content.SharedPreferences? = null,
+    val appDatabase: AppDatabase? = null
 ) {
     // Delegasi domain handler
     val accountHandler = AccountDomainHandler(accountDao, transactionDao)
@@ -48,6 +49,18 @@ class TransactionRepository(
     }
 
     /**
+     * Menjalankan operasi database di dalam transaksi atomic SQLite (ACID).
+     * Mendelegasikan ke [appDatabase.runInTransaction] jika database tersedia,
+     * atau ke [transactionDao.runInTransaction].
+     *
+     * @param block Blok kode suspend yang dieksekusi di dalam transaksi.
+     * @return Hasil pengembalian dari [block].
+     */
+    suspend fun <T> runInTransaction(block: suspend () -> T): T {
+        return appDatabase?.runInTransaction(block) ?: transactionDao.runInTransaction(block)
+    }
+
+    /**
      * Konstruktor praktis berbasis database Room/SQLite terpadu [AppDatabase].
      */
     constructor(db: AppDatabase, preferences: android.content.SharedPreferences? = null) : this(
@@ -56,7 +69,8 @@ class TransactionRepository(
         db.categoryDao,
         db.budgetDao,
         db.notificationDao,
-        preferences
+        preferences,
+        db
     )
 
     /**
@@ -90,13 +104,16 @@ class TransactionRepository(
         transactionDao.getTransactionsPaged(limit, offset)
 
     suspend fun insertTransaction(transaction: TransactionEntity): Long {
-        val insertedId = transactionDao.insertTransaction(transaction)
-        val delta = if (transaction.type.equals("INCOME", ignoreCase = true)) {
-            transaction.amount
-        } else {
-            -transaction.amount
+        val insertedId = runInTransaction {
+            val id = transactionDao.insertTransaction(transaction)
+            val delta = if (transaction.type.equals("INCOME", ignoreCase = true)) {
+                transaction.amount
+            } else {
+                -transaction.amount
+            }
+            accountDao.adjustBalance(transaction.accountId, delta)
+            id
         }
-        accountDao.adjustBalance(transaction.accountId, delta)
 
         if (transaction.type.equals("EXPENSE", ignoreCase = true)) {
             budgetHandler.checkAndTriggerBudgetAlert(transaction)
@@ -106,19 +123,21 @@ class TransactionRepository(
     }
 
     suspend fun deleteTransaction(transaction: TransactionEntity) {
-        transactionDao.deleteTransaction(transaction.id)
-        if (transaction.type.equals("TRANSFER", ignoreCase = true)) {
-            accountDao.adjustBalance(transaction.accountId, transaction.amount)
-            transaction.toAccountId?.let { toId ->
-                accountDao.adjustBalance(toId, -transaction.amount)
-            }
-        } else {
-            val delta = if (transaction.type.equals("INCOME", ignoreCase = true)) {
-                -transaction.amount
+        runInTransaction {
+            transactionDao.deleteTransaction(transaction.id)
+            if (transaction.type.equals("TRANSFER", ignoreCase = true)) {
+                accountDao.adjustBalance(transaction.accountId, transaction.amount)
+                transaction.toAccountId?.let { toId ->
+                    accountDao.adjustBalance(toId, -transaction.amount)
+                }
             } else {
-                transaction.amount
+                val delta = if (transaction.type.equals("INCOME", ignoreCase = true)) {
+                    -transaction.amount
+                } else {
+                    transaction.amount
+                }
+                accountDao.adjustBalance(transaction.accountId, delta)
             }
-            accountDao.adjustBalance(transaction.accountId, delta)
         }
     }
 
@@ -133,33 +152,46 @@ class TransactionRepository(
 
     suspend fun resetTransactions() = transactionDao.clearAllTransactions()
 
+    /**
+     * Memasukkan daftar transaksi secara batch dan memperbarui saldo rekening secara atomik (ACID).
+     * Seluruh operasi batch insert dan penyesuaian delta saldo dibungkus dalam transaksi SQLite.
+     * Jika terjadi kegagalan atau exception pada salah satu langkah, seluruh operasi dibatalkan (rollback)
+     * dan saldo rekening tidak mengalami distorsi.
+     *
+     * @param transactions Daftar transaksi yang akan disimpan.
+     * @return Daftar ID transaksi yang berhasil dibuat.
+     */
     suspend fun insertTransactionsBatch(transactions: List<TransactionEntity>): List<Long> {
         if (transactions.isEmpty()) return emptyList()
 
-        val ids = transactionDao.insertTransactionsBatch(transactions)
+        val ids = runInTransaction {
+            val insertedIds = transactionDao.insertTransactionsBatch(transactions)
 
-        val deltasByAccount = mutableMapOf<Long, Double>()
-        for (tx in transactions) {
-            if (tx.type.equals("TRANSFER", ignoreCase = true)) {
-                val currentFrom = deltasByAccount.getOrDefault(tx.accountId, 0.0)
-                deltasByAccount[tx.accountId] = currentFrom - tx.amount
-                tx.toAccountId?.let { toId ->
-                    val currentTo = deltasByAccount.getOrDefault(toId, 0.0)
-                    deltasByAccount[toId] = currentTo + tx.amount
-                }
-            } else {
-                val delta = if (tx.type.equals("INCOME", ignoreCase = true)) {
-                    tx.amount
+            val deltasByAccount = mutableMapOf<Long, Double>()
+            for (tx in transactions) {
+                if (tx.type.equals("TRANSFER", ignoreCase = true)) {
+                    val currentFrom = deltasByAccount.getOrDefault(tx.accountId, 0.0)
+                    deltasByAccount[tx.accountId] = currentFrom - tx.amount
+                    tx.toAccountId?.let { toId ->
+                        val currentTo = deltasByAccount.getOrDefault(toId, 0.0)
+                        deltasByAccount[toId] = currentTo + tx.amount
+                    }
                 } else {
-                    -tx.amount
+                    val delta = if (tx.type.equals("INCOME", ignoreCase = true)) {
+                        tx.amount
+                    } else {
+                        -tx.amount
+                    }
+                    val current = deltasByAccount.getOrDefault(tx.accountId, 0.0)
+                    deltasByAccount[tx.accountId] = current + delta
                 }
-                val current = deltasByAccount.getOrDefault(tx.accountId, 0.0)
-                deltasByAccount[tx.accountId] = current + delta
             }
-        }
 
-        deltasByAccount.forEach { (accountId, totalDelta) ->
-            accountDao.adjustBalance(accountId, totalDelta)
+            deltasByAccount.forEach { (accountId, totalDelta) ->
+                accountDao.adjustBalance(accountId, totalDelta)
+            }
+
+            insertedIds
         }
 
         transactions.filter { it.type.equals("EXPENSE", ignoreCase = true) }
@@ -178,40 +210,42 @@ class TransactionRepository(
      * @param newTransaction Data transaksi baru yang akan disimpan dan diterapkan mutasi saldonya.
      */
     suspend fun updateTransaction(oldTransaction: TransactionEntity, newTransaction: TransactionEntity) {
-        transactionDao.updateTransaction(newTransaction)
+        runInTransaction {
+            transactionDao.updateTransaction(newTransaction)
 
-        // 1. Batalkan mutasi saldo transaksi lama
-        if (oldTransaction.type.equals("TRANSFER", ignoreCase = true)) {
-            accountDao.adjustBalance(oldTransaction.accountId, oldTransaction.amount)
-            oldTransaction.toAccountId?.let { toId ->
-                accountDao.adjustBalance(toId, -oldTransaction.amount)
-            }
-        } else {
-            val oldDelta = if (oldTransaction.type.equals("INCOME", ignoreCase = true)) {
-                -oldTransaction.amount
+            // 1. Batalkan mutasi saldo transaksi lama
+            if (oldTransaction.type.equals("TRANSFER", ignoreCase = true)) {
+                accountDao.adjustBalance(oldTransaction.accountId, oldTransaction.amount)
+                oldTransaction.toAccountId?.let { toId ->
+                    accountDao.adjustBalance(toId, -oldTransaction.amount)
+                }
             } else {
-                oldTransaction.amount
+                val oldDelta = if (oldTransaction.type.equals("INCOME", ignoreCase = true)) {
+                    -oldTransaction.amount
+                } else {
+                    oldTransaction.amount
+                }
+                accountDao.adjustBalance(oldTransaction.accountId, oldDelta)
             }
-            accountDao.adjustBalance(oldTransaction.accountId, oldDelta)
+
+            // 2. Terapkan mutasi saldo transaksi baru
+            if (newTransaction.type.equals("TRANSFER", ignoreCase = true)) {
+                accountDao.adjustBalance(newTransaction.accountId, -newTransaction.amount)
+                newTransaction.toAccountId?.let { toId ->
+                    accountDao.adjustBalance(toId, newTransaction.amount)
+                }
+            } else {
+                val newDelta = if (newTransaction.type.equals("INCOME", ignoreCase = true)) {
+                    newTransaction.amount
+                } else {
+                    -newTransaction.amount
+                }
+                accountDao.adjustBalance(newTransaction.accountId, newDelta)
+            }
         }
 
-        // 2. Terapkan mutasi saldo transaksi baru
-        if (newTransaction.type.equals("TRANSFER", ignoreCase = true)) {
-            accountDao.adjustBalance(newTransaction.accountId, -newTransaction.amount)
-            newTransaction.toAccountId?.let { toId ->
-                accountDao.adjustBalance(toId, newTransaction.amount)
-            }
-        } else {
-            val newDelta = if (newTransaction.type.equals("INCOME", ignoreCase = true)) {
-                newTransaction.amount
-            } else {
-                -newTransaction.amount
-            }
-            accountDao.adjustBalance(newTransaction.accountId, newDelta)
-
-            if (newTransaction.type.equals("EXPENSE", ignoreCase = true)) {
-                budgetHandler.checkAndTriggerBudgetAlert(newTransaction)
-            }
+        if (newTransaction.type.equals("EXPENSE", ignoreCase = true)) {
+            budgetHandler.checkAndTriggerBudgetAlert(newTransaction)
         }
     }
 

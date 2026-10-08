@@ -114,6 +114,14 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
         DatabaseMigrations.onUpgrade(db, oldVersion, newVersion)
     }
 
+    /**
+     * Menjalankan blok operasi database di dalam transaksi atomic SQLite (ACID).
+     * Jika terjadi kegagalan atau exception, seluruh perubahan dibatalkan (rollback).
+     * Setelah transaksi selesai (baik sukses maupun rollback), seluruh reactive StateFlow diperbarui.
+     *
+     * @param block Blok kode suspend yang dieksekusi di dalam transaksi.
+     * @return Hasil pengembalian dari [block].
+     */
     suspend fun <T> runInTransaction(block: suspend () -> T): T = withContext(Dispatchers.IO) {
         val db = writableDatabase
         db.beginTransaction()
@@ -122,7 +130,10 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             db.setTransactionSuccessful()
             result
         } finally {
-            db.endTransaction()
+            if (db.inTransaction()) {
+                db.endTransaction()
+            }
+            refreshAllFlows()
         }
     }
 
@@ -196,6 +207,10 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
 
     // ── TransactionDao Implementation ─────────────────────────────────────────
     val transactionDao: TransactionDao = object : TransactionDao {
+        override suspend fun <T> runInTransaction(block: suspend () -> T): T {
+            return this@AppDatabase.runInTransaction(block)
+        }
+
         override fun getAllTransactions(): Flow<List<TransactionEntity>> = _transactionsFlow.asStateFlow()
 
         override suspend fun getTransactionsPaged(limit: Int, offset: Int): List<TransactionEntity> =
