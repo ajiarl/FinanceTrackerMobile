@@ -9,7 +9,9 @@ import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.NotificationEntity
 import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.repository.TransactionRepository
+import com.sena.financetracker.util.CsvImporter
 import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,8 +39,11 @@ import java.util.Locale
  * Menjamin error handling yang aman pada setiap operasi coroutine di [viewModelScope] tanpa membuat aplikasi crash.
  */
 class FinanceViewModel(
-    private val repository: TransactionRepository
+    private val repository: TransactionRepository,
+    scopeOverride: CoroutineScope? = null
 ) : ViewModel() {
+
+    private val activeScope: CoroutineScope = scopeOverride ?: viewModelScope
 
     private val _uiState = MutableStateFlow(FinanceUiState(isLoading = true))
 
@@ -52,7 +57,7 @@ class FinanceViewModel(
      */
     val notifications: StateFlow<List<NotificationEntity>> = repository.getAllNotifications()
         .stateIn(
-            scope = viewModelScope,
+            scope = activeScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
@@ -62,7 +67,7 @@ class FinanceViewModel(
      */
     val unreadNotificationCount: StateFlow<Int> = repository.getUnreadNotificationCount()
         .stateIn(
-            scope = viewModelScope,
+            scope = activeScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = 0
         )
@@ -197,7 +202,7 @@ class FinanceViewModel(
             )
         }
 
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             combine(dataFlow, filterParamsFlow) { data, filter ->
                 calculateFinanceTotals(
                     transactions = data.transactions,
@@ -277,7 +282,7 @@ class FinanceViewModel(
      * Menandai notifikasi sebagai sudah dibaca berdasarkan ID.
      */
     fun markNotificationAsRead(id: Long) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.markNotificationAsRead(id)
             } catch (e: Exception) {
@@ -290,7 +295,7 @@ class FinanceViewModel(
      * Menandai seluruh notifikasi yang ada sebagai sudah dibaca.
      */
     fun markAllNotificationsAsRead() {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.markAllNotificationsAsRead()
             } catch (e: Exception) {
@@ -303,7 +308,7 @@ class FinanceViewModel(
      * Menghapus seluruh riwayat notifikasi.
      */
     fun clearAllNotifications() {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.clearAllNotifications()
             } catch (e: Exception) {
@@ -316,7 +321,7 @@ class FinanceViewModel(
      * Menghapus satu notifikasi berdasarkan ID.
      */
     fun deleteNotification(id: Long) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.deleteNotification(id)
             } catch (e: Exception) {
@@ -354,7 +359,7 @@ class FinanceViewModel(
      * Mengosongkan seluruh riwayat database transaksi dan mereset filter.
      */
     fun resetTransactions() {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.resetTransactions()
                 clearFilters()
@@ -372,7 +377,7 @@ class FinanceViewModel(
         onSuccess: (count: Int) -> Unit = {},
         onError: (message: String) -> Unit = {}
     ) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 val insertedIds = repository.insertTransactionsBatch(transactions)
                 onSuccess(insertedIds.size)
@@ -385,11 +390,171 @@ class FinanceViewModel(
     }
 
     /**
+     * Mengeksekusi impor transaksi CSV secara langsung (suspend) dengan resolusi O(1) in-memory
+     * untuk akun dan kategori guna mengeliminasi masalah N+1 Database Queries (PERF-01).
+     *
+     * Logika Operasi:
+     * 1. Pre-fetch seluruh akun dan kategori ke dalam MutableMap in-memory sebelum perulangan baris.
+     * 2. Pencocokan nama akun dan kategori secara O(1) berbasis lowercase.
+     * 3. Jika nama akun/kategori baru ditemukan, simpan ke database 1x lalu daftarkan ke cache lokal
+     *    sehingga baris-baris berikutnya dengan nama yang sama tidak memicu query database tambahan.
+     * 4. Melakukan batch insert seluruh entitas transaksi secara atomik melalui [TransactionRepository.insertTransactionsBatch].
+     *
+     * @param parsedTransactions Daftar transaksi yang telah diparsing dari format CSV.
+     * @param defaultAccountId ID akun fallback jika baris CSV tidak memuat nama akun valid.
+     * @param defaultAccountName Nama akun fallback jika akun default baru perlu dibuat.
+     * @param defaultCategory Kategori fallback jika baris CSV kosong pada kolom kategori.
+     * @return Jumlah transaksi yang berhasil dimasukkan ke basis data.
+     */
+    suspend fun importFromCsvSuspend(
+        parsedTransactions: List<CsvImporter.ParsedTransaction>,
+        defaultAccountId: Long? = null,
+        defaultAccountName: String? = null,
+        defaultCategory: String = "Lainnya"
+    ): Int {
+        val validRows = parsedTransactions.filter { it.isValid }
+        if (validRows.isEmpty()) return 0
+
+        // 1. Pre-fetch akun & kategori sekali saja ke dalam memory Map O(1)
+        val initialAccounts = repository.getAllAccounts().first()
+        val initialCategories = repository.getAllCategories().first()
+
+        val accountsByName = initialAccounts.associateBy { it.name.trim().lowercase(Locale.ROOT) }.toMutableMap()
+        val categoriesByName = initialCategories.associateBy { it.name.trim().lowercase(Locale.ROOT) }.toMutableMap()
+
+        // Resolusi fallback akun default
+        val fallbackAccount = if (defaultAccountId != null) {
+            initialAccounts.find { it.id == defaultAccountId }
+        } else {
+            initialAccounts.firstOrNull()
+        } ?: run {
+            val fallbackName = defaultAccountName?.takeIf { it.isNotBlank() } ?: "Dompet Tunai"
+            val fallbackKey = fallbackName.lowercase(Locale.ROOT)
+            accountsByName.getOrPut(fallbackKey) {
+                val newId = repository.addAccount(name = fallbackName, type = "CASH", initialBalance = 0.0)
+                AccountEntity(id = newId, name = fallbackName, type = "CASH", balance = 0.0)
+            }
+        }
+
+        val entitiesToInsert = ArrayList<TransactionEntity>(validRows.size)
+
+        // 2. Iterasi baris CSV dengan in-memory resolution O(1)
+        for (row in validRows) {
+            // Resolusi Akun
+            val resolvedAccount = if (row.rawAccountName.isNotBlank()) {
+                val accKey = row.rawAccountName.trim().lowercase(Locale.ROOT)
+                accountsByName.getOrPut(accKey) {
+                    val accName = row.rawAccountName.trim()
+                    val newId = repository.addAccount(name = accName, type = "BANK", initialBalance = 0.0)
+                    AccountEntity(id = newId, name = accName, type = "BANK", balance = 0.0)
+                }
+            } else {
+                fallbackAccount
+            }
+
+            // Resolusi Kategori
+            val rawCat = if (row.category.isNotBlank()) row.category.trim() else defaultCategory
+            val catKey = rawCat.lowercase(Locale.ROOT)
+            val resolvedCategory = categoriesByName.getOrPut(catKey) {
+                val newCatId = repository.insertCategory(name = rawCat, type = row.type, color = "#FAFF00")
+                CategoryEntity(id = newCatId, name = rawCat, type = row.type, color = "#FAFF00")
+            }
+
+            entitiesToInsert.add(
+                TransactionEntity(
+                    title = row.title,
+                    amount = row.amount,
+                    type = row.type,
+                    category = resolvedCategory.name,
+                    date = row.date,
+                    accountId = resolvedAccount.id,
+                    accountName = resolvedAccount.name,
+                    notes = row.notes
+                )
+            )
+        }
+
+        // 3. Batch insert seluruh transaksi dalam 1 operasi atomik
+        val insertedIds = repository.insertTransactionsBatch(entitiesToInsert)
+        return insertedIds.size
+    }
+
+    /**
+     * Overload suspend untuk mengimpor dari teks string CSV mentah.
+     */
+    suspend fun importFromCsvSuspend(
+        csvContent: String,
+        defaultAccountId: Long? = null,
+        defaultAccountName: String? = null,
+        defaultCategory: String = "Lainnya"
+    ): Int {
+        val parsed = CsvImporter.parseCsv(csvContent, defaultCategory)
+        return importFromCsvSuspend(parsed, defaultAccountId, defaultAccountName, defaultCategory)
+    }
+
+    /**
+     * Mengimpor daftar transaksi hasil parsing CSV dengan resolusi O(1) in-memory untuk
+     * akun dan kategori guna mengeliminasi masalah N+1 Database Queries (PERF-01).
+     */
+    fun importFromCsv(
+        parsedTransactions: List<CsvImporter.ParsedTransaction>,
+        defaultAccountId: Long? = null,
+        defaultAccountName: String? = null,
+        defaultCategory: String = "Lainnya",
+        onSuccess: (count: Int) -> Unit = {},
+        onError: (message: String) -> Unit = {}
+    ) {
+        activeScope.launch(coroutineExceptionHandler) {
+            try {
+                val count = importFromCsvSuspend(
+                    parsedTransactions = parsedTransactions,
+                    defaultAccountId = defaultAccountId,
+                    defaultAccountName = defaultAccountName,
+                    defaultCategory = defaultCategory
+                )
+                onSuccess(count)
+            } catch (e: Exception) {
+                val errorMsg = e.message ?: "Gagal memproses impor CSV"
+                _uiState.value = _uiState.value.copy(errorMessage = errorMsg)
+                onError(errorMsg)
+            }
+        }
+    }
+
+    /**
+     * Mengimpor transaksi dari string CSV mentah secara asinkron.
+     */
+    fun importFromCsv(
+        csvContent: String,
+        defaultAccountId: Long? = null,
+        defaultAccountName: String? = null,
+        defaultCategory: String = "Lainnya",
+        onSuccess: (count: Int) -> Unit = {},
+        onError: (message: String) -> Unit = {}
+    ) {
+        activeScope.launch(coroutineExceptionHandler) {
+            try {
+                val count = importFromCsvSuspend(
+                    csvContent = csvContent,
+                    defaultAccountId = defaultAccountId,
+                    defaultAccountName = defaultAccountName,
+                    defaultCategory = defaultCategory
+                )
+                onSuccess(count)
+            } catch (e: Exception) {
+                val errorMsg = e.message ?: "Gagal memproses impor CSV"
+                _uiState.value = _uiState.value.copy(errorMessage = errorMsg)
+                onError(errorMsg)
+            }
+        }
+    }
+
+    /**
      * Memicu permintaan analisis finansial cerdas "Pak Hemat · AI Insight"
      * untuk rentang transaksi tertentu atau transaksi periode yang sedang aktif.
      */
     fun fetchAiInsight(startDate: String? = null, endDate: String? = null) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             _isAiInsightLoading.value = true
             _aiInsightError.value = null
             try {
@@ -454,7 +619,7 @@ class FinanceViewModel(
         limitAmount: Double,
         period: String = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
     ) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.addBudget(name, category, limitAmount, period)
             } catch (e: Exception) {
@@ -467,7 +632,7 @@ class FinanceViewModel(
      * Menghapus anggaran berdasarkan ID.
      */
     fun deleteBudget(id: Long) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.deleteBudget(id)
             } catch (e: Exception) {
@@ -489,7 +654,7 @@ class FinanceViewModel(
         accountName: String = "Dompet Tunai",
         notes: String = ""
     ) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 val newTx = TransactionEntity(
                     title = title,
@@ -512,7 +677,7 @@ class FinanceViewModel(
      * Menghapus transaksi dan mengembalikan saldo rekening yang terdampak.
      */
     fun deleteTransaction(transaction: TransactionEntity) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.deleteTransaction(transaction)
             } catch (e: Exception) {
@@ -525,7 +690,7 @@ class FinanceViewModel(
      * Memperbarui informasi transaksi yang sudah ada dan melakukan sinkronisasi saldo.
      */
     fun updateTransaction(oldTransaction: TransactionEntity, newTransaction: TransactionEntity) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.updateTransaction(oldTransaction, newTransaction)
             } catch (e: Exception) {
@@ -544,7 +709,7 @@ class FinanceViewModel(
         notes: String = "",
         date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     ) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.transferFunds(fromAccount, toAccount, amount, notes, date)
             } catch (e: Exception) {
@@ -561,7 +726,7 @@ class FinanceViewModel(
         type: String,
         initialBalance: Double
     ) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.addAccount(name, type, initialBalance)
             } catch (e: Exception) {
@@ -578,7 +743,7 @@ class FinanceViewModel(
         actualBalance: Double,
         date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     ) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.reconcileAccount(account, actualBalance, date)
             } catch (e: Exception) {
@@ -595,7 +760,7 @@ class FinanceViewModel(
         type: String,
         color: String = "#FAFF00"
     ) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.insertCategory(name, type, color)
             } catch (e: Exception) {
@@ -613,7 +778,7 @@ class FinanceViewModel(
         type: String,
         color: String
     ) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.updateCategory(id, name, type, color)
             } catch (e: Exception) {
@@ -626,7 +791,7 @@ class FinanceViewModel(
      * Menghapus kategori kustom berdasarkan ID. Kategori bawaan sistem diproteksi dan ditolak.
      */
     fun deleteCategory(id: Long) {
-        viewModelScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(coroutineExceptionHandler) {
             try {
                 repository.deleteCategory(id)
             } catch (e: Exception) {

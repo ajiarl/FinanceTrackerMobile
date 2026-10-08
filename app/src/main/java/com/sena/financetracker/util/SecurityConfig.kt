@@ -1,24 +1,32 @@
 package com.sena.financetracker.util
 
-import com.sena.financetracker.BuildConfig
+import android.content.Context
+import com.sena.financetracker.security.ApiKeyStorage
 
 /**
- * Runtime Security Configuration & In-Memory De-obfuscation Engine.
- * Conceals API keys from static DEX analysis by storing them as XOR-masked byte arrays
- * and de-obfuscating dynamically at runtime.
+ * Konfigurasi keamanan dan gerbang kredensial aplikasi.
+ *
+ * Meneruskan panggilan pengambilan API Key ke [ApiKeyStorage] yang memanfaatkan
+ * [androidx.security.crypto.EncryptedSharedPreferences] dan Android Keystore hardware (SEC-01).
  */
 object SecurityConfig {
 
     /**
-     * De-obfuscates the masked GROQ API Key using the compile-time XOR salt.
-     * Returns an empty string safely if the payload is empty or invalid.
+     * Mengambil Groq API Key dari [ApiKeyStorage].
+     *
+     * @param context Context Android opsional untuk membaca EncryptedSharedPreferences.
+     * @return Groq API Key dalam bentuk String.
      */
-    fun getGroqApiKey(): String {
-        return deobfuscate(BuildConfig.GROQ_KEY_MASKED, BuildConfig.GROQ_KEY_SALT)
+    fun getGroqApiKey(context: Context? = null): String {
+        return if (context != null) {
+            ApiKeyStorage.getGroqApiKey(context)
+        } else {
+            ApiKeyStorage.getGroqApiKey()
+        }
     }
 
     /**
-     * Pure de-obfuscation algorithm for XOR-masked byte buffers.
+     * De-obfuscation algoritma untuk XOR-masked byte array (dipertahankan untuk backwards compatibility pengujian).
      */
     fun deobfuscate(maskedBytes: ByteArray?, salt: Byte): String {
         if (maskedBytes == null || maskedBytes.isEmpty()) {

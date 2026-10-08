@@ -10,13 +10,6 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
-val groqApiKey: String = localProperties.getProperty("GROQ_API_KEY") ?: ""
-
-// Obfuscate GROQ_API_KEY into XOR masked array
-val xorSalt: Byte = 0x5A
-val groqKeyBytes = groqApiKey.toByteArray(Charsets.UTF_8)
-val maskedBytes = groqKeyBytes.map { (it.toInt() xor xorSalt.toInt()).toByte() }
-val maskedBytesLiteral = "new byte[] { " + maskedBytes.joinToString(", ") { "(byte) $it" } + " }"
 
 android {
     namespace = "com.sena.financetracker"
@@ -28,9 +21,6 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-
-        buildConfigField("byte[]", "GROQ_KEY_MASKED", maskedBytesLiteral)
-        buildConfigField("byte", "GROQ_KEY_SALT", "(byte) $xorSalt")
     }
 
     buildTypes {
@@ -74,6 +64,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.security.crypto)
     testImplementation(libs.junit)
     debugImplementation(libs.androidx.ui.tooling)
 }
