@@ -7,6 +7,7 @@ import com.sena.financetracker.data.NotificationDao
 import com.sena.financetracker.data.NotificationEntity
 import com.sena.financetracker.data.TransactionDao
 import com.sena.financetracker.data.TransactionEntity
+import com.sena.financetracker.util.CurrencyMath.roundCurrency
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -33,13 +34,15 @@ class BudgetDomainHandler(
         ) { budgets, transactions ->
             val activeBudgets = budgets.filter { it.isActive && (it.period.isEmpty() || it.period == period) }
             activeBudgets.map { budget ->
-                val spentAmount = transactions
-                    .filter { tx ->
-                        tx.type.equals("EXPENSE", ignoreCase = true) &&
-                        tx.category.equals(budget.category, ignoreCase = true) &&
-                        tx.date.startsWith(period)
-                    }
-                    .sumOf { it.amount }
+                val spentAmount = roundCurrency(
+                    transactions
+                        .filter { tx ->
+                            tx.type.equals("EXPENSE", ignoreCase = true) &&
+                            tx.category.equals(budget.category, ignoreCase = true) &&
+                            tx.date.startsWith(period)
+                        }
+                        .sumOf { it.amount }
+                )
 
                 val percentage = if (budget.limitAmount > 0) {
                     ((spentAmount / budget.limitAmount) * 100).toInt()
@@ -106,13 +109,15 @@ class BudgetDomainHandler(
         if (matchingBudgets.isEmpty()) return
 
         val allTransactions = transactionDao.getAllTransactions().first()
-        val totalSpentInCategory = allTransactions
-            .filter { tx ->
-                tx.type.equals("EXPENSE", ignoreCase = true) &&
-                tx.category.equals(transaction.category, ignoreCase = true) &&
-                tx.date.startsWith(period)
-            }
-            .sumOf { it.amount }
+        val totalSpentInCategory = roundCurrency(
+            allTransactions
+                .filter { tx ->
+                    tx.type.equals("EXPENSE", ignoreCase = true) &&
+                    tx.category.equals(transaction.category, ignoreCase = true) &&
+                    tx.date.startsWith(period)
+                }
+                .sumOf { it.amount }
+        )
 
         for (budget in matchingBudgets) {
             if (budget.limitAmount <= 0) continue

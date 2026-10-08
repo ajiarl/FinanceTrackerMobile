@@ -28,4 +28,11 @@ class CurrencyFormatterTest {
         val result = formatRupiah(-25000.0)
         assertEquals("-Rp 25.000", result)
     }
+
+    @Test
+    fun testFormatRupiahPrecisionSanitizer() {
+        // Angka 49999.9999 seharusnya dibulatkan menjadi 50.000 bukan terpotong ke 49.999
+        val result = formatRupiah(49999.9999)
+        assertEquals("Rp 50.000", result)
+    }
 }

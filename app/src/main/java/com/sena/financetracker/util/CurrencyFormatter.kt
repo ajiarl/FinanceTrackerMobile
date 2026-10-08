@@ -11,7 +11,7 @@ fun formatRupiah(amount: Double): String {
         decimalSeparator = ','
     }
     val formatter = DecimalFormat("#,###", symbols)
-    val absAmount = abs(amount).toLong()
+    val absAmount = kotlin.math.round(abs(amount)).toLong()
     val formattedNumber = formatter.format(absAmount)
 
     return if (amount < 0) {

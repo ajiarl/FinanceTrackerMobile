@@ -4,6 +4,7 @@ import com.sena.financetracker.data.AccountDao
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.TransactionDao
 import com.sena.financetracker.data.TransactionEntity
+import com.sena.financetracker.util.CurrencyMath.roundCurrency
 import kotlinx.coroutines.flow.Flow
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -28,12 +29,14 @@ class AccountDomainHandler(
         require(fromAccount.id != toAccount.id) { "Akun asal dan akun tujuan tidak boleh sama" }
         require(amount > 0) { "Nominal transfer harus lebih besar dari 0" }
 
-        accountDao.adjustBalance(fromAccount.id, -amount)
-        accountDao.adjustBalance(toAccount.id, amount)
+        val safeAmount = roundCurrency(amount)
+
+        accountDao.adjustBalance(fromAccount.id, -safeAmount)
+        accountDao.adjustBalance(toAccount.id, safeAmount)
 
         val transferTx = TransactionEntity(
             title = "Transfer ke ${toAccount.name}",
-            amount = amount,
+            amount = safeAmount,
             type = "TRANSFER",
             category = "Transfer",
             date = date,
@@ -52,17 +55,18 @@ class AccountDomainHandler(
         initialBalance: Double,
         date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     ): Long {
+        val safeInitialBalance = roundCurrency(initialBalance)
         val newAccount = AccountEntity(
             name = name,
             type = type,
-            balance = initialBalance
+            balance = safeInitialBalance
         )
         val newAccountId = accountDao.insertAccount(newAccount)
 
-        if (initialBalance > 0) {
+        if (safeInitialBalance > 0) {
             val initialTx = TransactionEntity(
                 title = "Saldo Awal",
-                amount = initialBalance,
+                amount = safeInitialBalance,
                 type = "INCOME",
                 category = "Saldo Awal",
                 date = date,
@@ -80,10 +84,11 @@ class AccountDomainHandler(
         actualBalance: Double,
         date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     ) {
-        val diff = actualBalance - account.balance
+        val safeActualBalance = roundCurrency(actualBalance)
+        val diff = roundCurrency(safeActualBalance - account.balance)
         if (kotlin.math.abs(diff) < 0.001) return
 
-        accountDao.updateBalance(account.id, actualBalance)
+        accountDao.updateBalance(account.id, safeActualBalance)
 
         val adjustmentTx = TransactionEntity(
             title = "Penyesuaian Saldo Sistem",
@@ -93,7 +98,7 @@ class AccountDomainHandler(
             date = date,
             accountId = account.id,
             accountName = account.name,
-            notes = "Rekonsiliasi: saldo lama ${account.balance.toLong()}, saldo baru ${actualBalance.toLong()}, selisih ${if (diff > 0) "+" else ""}${diff.toLong()}"
+            notes = "Rekonsiliasi: saldo lama ${account.balance.toLong()}, saldo baru ${safeActualBalance.toLong()}, selisih ${if (diff > 0) "+" else ""}${diff.toLong()}"
         )
         transactionDao.insertTransaction(adjustmentTx)
     }
