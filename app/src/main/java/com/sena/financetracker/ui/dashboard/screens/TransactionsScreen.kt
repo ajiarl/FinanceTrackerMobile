@@ -28,10 +28,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sena.financetracker.R
 import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.ui.components.RetroCanvas
 import com.sena.financetracker.ui.components.RetroYellow
@@ -77,7 +79,7 @@ fun TransactionsScreen(
                     modifier = Modifier.weight(1f, fill = false)
                 ) {
                     Text(
-                        text = "RIWAYAT TRANSAKSI",
+                        text = stringResource(R.string.title_screen_transactions),
                         style = TextStyle(
                             fontWeight = FontWeight.Black,
                             fontSize = 22.sp,

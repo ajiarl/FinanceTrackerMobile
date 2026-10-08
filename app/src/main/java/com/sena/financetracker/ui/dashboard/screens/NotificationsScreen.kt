@@ -39,10 +39,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sena.financetracker.R
 import com.sena.financetracker.data.NotificationEntity
 import com.sena.financetracker.ui.components.RetroCanvas
 import com.sena.financetracker.ui.components.RetroYellow
@@ -134,7 +137,7 @@ fun NotificationsScreen(
                         )
                     )
                     Text(
-                        text = "PUSAT PESAN / NOTIFIKASI",
+                        text = stringResource(R.string.title_screen_notifications),
                         style = TextStyle(
                             fontWeight = FontWeight.Black,
                             fontSize = 18.sp,

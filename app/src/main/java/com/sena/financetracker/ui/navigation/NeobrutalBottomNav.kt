@@ -24,11 +24,13 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sena.financetracker.R
 import com.sena.financetracker.ui.components.RetroYellow
 
 /**
@@ -86,6 +88,21 @@ fun NeobrutalBottomNav(
 }
 
 @Composable
+fun getScreenTitle(screen: Screen): String {
+    return when (screen) {
+        Screen.Dashboard -> stringResource(R.string.nav_dashboard)
+        Screen.Transactions -> stringResource(R.string.nav_transactions)
+        Screen.Budgets -> stringResource(R.string.nav_budgets)
+        Screen.Accounts -> stringResource(R.string.nav_accounts)
+        Screen.Reports -> stringResource(R.string.nav_reports)
+        Screen.Categories -> stringResource(R.string.nav_categories)
+        Screen.Notifications -> stringResource(R.string.nav_notifications)
+        Screen.Settings -> stringResource(R.string.nav_settings)
+        Screen.Import -> stringResource(R.string.nav_import)
+    }
+}
+
+@Composable
 private fun BottomNavItem(
     screen: Screen,
     isSelected: Boolean,
@@ -93,6 +110,7 @@ private fun BottomNavItem(
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val displayTitle = getScreenTitle(screen)
 
     Box(
         modifier = modifier
@@ -128,12 +146,12 @@ private fun BottomNavItem(
                 ) {
                     Icon(
                         imageVector = screen.icon,
-                        contentDescription = screen.title,
+                        contentDescription = displayTitle,
                         tint = Color.Black,
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
-                        text = screen.title,
+                        text = displayTitle,
                         style = TextStyle(
                             fontWeight = FontWeight.Black,
                             fontSize = 10.sp,
@@ -156,12 +174,12 @@ private fun BottomNavItem(
             ) {
                 Icon(
                     imageVector = screen.icon,
-                    contentDescription = screen.title,
+                    contentDescription = displayTitle,
                     tint = Color(0xFF64748B),
                     modifier = Modifier.size(20.dp)
                 )
                 Text(
-                    text = screen.title,
+                    text = displayTitle,
                     style = TextStyle(
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp,

@@ -37,10 +37,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sena.financetracker.R
 import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.ui.components.RetroCanvas
 import com.sena.financetracker.ui.components.RetroExpenseRed
@@ -146,7 +148,7 @@ fun CategoriesScreen(
                             )
                         )
                         Text(
-                            text = "KELOLA KATEGORI",
+                            text = stringResource(R.string.title_screen_categories),
                             style = TextStyle(
                                 fontWeight = FontWeight.Black,
                                 fontSize = 22.sp,

@@ -25,11 +25,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
+import com.sena.financetracker.R
 @Composable
 fun ImportCsvHeader(
     onNavigateBack: () -> Unit,
@@ -65,7 +66,7 @@ fun ImportCsvHeader(
 
         Column {
             Text(
-                text = "IMPOR TRANSAKSI",
+                text = stringResource(R.string.title_screen_import_csv),
                 style = TextStyle(
                     fontWeight = FontWeight.Black,
                     fontSize = 20.sp,

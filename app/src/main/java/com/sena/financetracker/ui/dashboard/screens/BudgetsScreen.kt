@@ -10,10 +10,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sena.financetracker.R
 import com.sena.financetracker.ui.components.RetroCanvas
 import com.sena.financetracker.ui.dashboard.components.DashboardBudgetsSection
 import com.sena.financetracker.viewmodel.FinanceUiState
@@ -49,7 +51,7 @@ fun BudgetsScreen(
                     )
                 )
                 Text(
-                    text = "TARGET & ANGGARAN BULANAN",
+                    text = stringResource(R.string.title_screen_budgets),
                     style = TextStyle(
                         fontWeight = FontWeight.Black,
                         fontSize = 22.sp,

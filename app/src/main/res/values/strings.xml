@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Details -->
+    <string name="app_name">Finance Tracker</string>
+
+    <!-- Navigation Strings -->
+    <string name="nav_dashboard">Beranda</string>
+    <string name="nav_transactions">Transaksi</string>
+    <string name="nav_budgets">Anggaran</string>
+    <string name="nav_accounts">Akun</string>
+    <string name="nav_reports">Laporan</string>
+    <string name="nav_categories">Kategori</string>
+    <string name="nav_notifications">Notifikasi</string>
+    <string name="nav_settings">Pengaturan</string>
+    <string name="nav_import">Impor CSV</string>
+
+    <!-- General Actions -->
+    <string name="action_save">Simpan</string>
+    <string name="action_cancel">Batal</string>
+    <string name="action_delete">Hapus</string>
+    <string name="action_edit">Ubah</string>
+    <string name="action_confirm">Konfirmasi</string>
+    <string name="action_close">Tutup</string>
+
+    <!-- Dialog & Modal Titles -->
+    <string name="title_fast_add">TAMBAH TRANSAKSI</string>
+    <string name="title_confirm_delete">HAPUS TRANSAKSI</string>
+    <string name="title_confirm_reset">RESET DATABASE</string>
+
+    <!-- Screen Titles -->
+    <string name="title_screen_transactions">RIWAYAT TRANSAKSI</string>
+    <string name="title_screen_budgets">TARGET &amp; ANGGARAN BULANAN</string>
+    <string name="title_screen_accounts">DOMPET &amp; REKENING BANK</string>
+    <string name="title_screen_reports">LAPORAN KEUANGAN</string>
+    <string name="title_screen_categories">KELOLA KATEGORI</string>
+    <string name="title_screen_notifications">PUSAT PESAN / NOTIFIKASI</string>
+    <string name="title_screen_settings">PENGATURAN</string>
+    <string name="title_screen_import_csv">IMPOR TRANSAKSI</string>
+</resources>

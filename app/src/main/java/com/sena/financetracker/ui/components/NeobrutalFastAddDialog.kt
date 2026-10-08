@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -39,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.sena.financetracker.R
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.CategoryEntity
 import java.text.SimpleDateFormat
@@ -127,7 +129,7 @@ fun NeobrutalFastAddDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "TAMBAH TRANSAKSI",
+                        text = stringResource(R.string.title_fast_add),
                         style = TextStyle(
                             color = Color.White,
                             fontWeight = FontWeight.Black,
@@ -145,7 +147,7 @@ fun NeobrutalFastAddDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Tutup",
+                            contentDescription = stringResource(R.string.action_close),
                             tint = Color.White,
                             modifier = Modifier.size(18.dp)
                         )

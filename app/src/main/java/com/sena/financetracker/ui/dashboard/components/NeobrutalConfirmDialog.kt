@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.sena.financetracker.R
 
 /**
  * Dialog konfirmasi Neobrutal modal untuk tindakan berisiko/destruktif seperti
@@ -40,8 +42,8 @@ import androidx.compose.ui.window.DialogProperties
 fun NeobrutalConfirmDialog(
     title: String,
     message: String,
-    confirmButtonText: String = "HAPUS",
-    cancelButtonText: String = "BATAL",
+    confirmButtonText: String = stringResource(R.string.action_delete),
+    cancelButtonText: String = stringResource(R.string.action_cancel),
     confirmButtonColor: Color = Color(0xFFDC2626), // Merah retro tegas
     onConfirm: () -> Unit,
     onDismiss: () -> Unit

@@ -24,12 +24,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.hapticfeedback.HapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sena.financetracker.R
+import com.sena.financetracker.ui.components.RetroCanvas
 import com.sena.financetracker.ui.components.RetroYellow
 import com.sena.financetracker.util.CsvExporter
 import com.sena.financetracker.viewmodel.FinanceUiState
@@ -59,7 +60,7 @@ fun ReportsHeaderFilterSection(
                     )
                 )
                 Text(
-                    text = "LAPORAN KEUANGAN",
+                    text = stringResource(R.string.title_screen_reports),
                     style = TextStyle(
                         fontWeight = FontWeight.Black,
                         fontSize = 22.sp,
