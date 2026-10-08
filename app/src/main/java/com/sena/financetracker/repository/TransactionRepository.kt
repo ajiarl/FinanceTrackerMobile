@@ -261,6 +261,11 @@ class TransactionRepository(
     // ── ACCOUNTS DOMAIN FACADE ────────────────────────────────────────────────
     fun getAllAccounts(): Flow<List<AccountEntity>> = accountHandler.getAllAccounts()
 
+    /**
+     * Mendelegasikan transfer dana antar rekening ke [AccountDomainHandler] dengan validasi overdraft.
+     *
+     * @throws IllegalArgumentException Jika rekening sama, nominal tidak valid, atau saldo asal tidak cukup.
+     */
     suspend fun transferFunds(
         fromAccount: AccountEntity,
         toAccount: AccountEntity,

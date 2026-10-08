@@ -76,7 +76,8 @@ fun NeobrutalTransferDialog(
 
     val isSameAccount = fromAccountId == toAccountId
     val amountVal = CurrencyParser.parseCurrencyInput(amountText)
-    val isValid = !isSameAccount && amountVal > 0.0 && fromAccount != null && toAccount != null
+    val isOverdraft = fromAccount != null && amountVal > fromAccount.balance
+    val isValid = !isSameAccount && amountVal > 0.0 && fromAccount != null && toAccount != null && !isOverdraft
 
     val presets = listOf(
         Pair("+20k", 20000.0),
@@ -291,6 +292,28 @@ fun NeobrutalTransferDialog(
                         ) {
                             Text(
                                 text = "⚠️ PERINGATAN: Rekening asal dan rekening tujuan tidak boleh sama!",
+                                style = TextStyle(
+                                    color = RetroExpenseRed,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                    }
+
+                    // Peringatan jika Saldo Rekening Asal Tidak Mencukupi (Overdraft)
+                    if (isOverdraft && !isSameAccount && amountVal > 0.0) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFFFEF2F2), RectangleShape)
+                                .border(2.dp, RetroExpenseRed, RectangleShape)
+                                .padding(8.dp)
+                        ) {
+                            val balanceFormatted = java.text.NumberFormat.getNumberInstance(Locale.GERMANY)
+                                .format(fromAccount?.balance?.toLong() ?: 0L)
+                            Text(
+                                text = "⚠️ PERINGATAN: Saldo rekening asal (${fromAccount?.name}) tidak mencukupi! Saldo saat ini: Rp $balanceFormatted",
                                 style = TextStyle(
                                     color = RetroExpenseRed,
                                     fontWeight = FontWeight.Black,

@@ -87,6 +87,34 @@ class CsvImporterTest {
     }
 
     @Test
+    fun normalizeDate_rejectsInvalidDatesStrictly() {
+        // Tanggal 30 Februari (tidak valid)
+        assertNull(CsvImporter.normalizeDate("2026-02-30"))
+        assertNull(CsvImporter.normalizeDate("30/02/2026"))
+        assertNull(CsvImporter.normalizeDate("30-02-2026"))
+        // Tanggal 31 April (April hanya ada 30 hari)
+        assertNull(CsvImporter.normalizeDate("2026-04-31"))
+        assertNull(CsvImporter.normalizeDate("31/04/2026"))
+        // Format dan nilai tidak masuk akal
+        assertNull(CsvImporter.normalizeDate("2026-13-45"))
+        assertNull(CsvImporter.normalizeDate("bukan-tanggal"))
+    }
+
+    @Test
+    fun parseCsv_flagsInvalidDateAsNotValid() {
+        val raw = "Tanggal,Tipe,Judul,Nominal,Kategori\n" +
+                "2026-02-30,EXPENSE,Tanggal Februari Salah,50000,Makanan\n" +
+                "31/04/2026,EXPENSE,Tanggal April Salah,25000,Makanan"
+
+        val parsed = CsvImporter.parseCsv(raw)
+        assertEquals(2, parsed.size)
+        assertFalse(parsed[0].isValid)
+        assertTrue(parsed[0].errorMessage?.contains("Tanggal tidak valid") == true)
+        assertFalse(parsed[1].isValid)
+        assertTrue(parsed[1].errorMessage?.contains("Tanggal tidak valid") == true)
+    }
+
+    @Test
     fun normalizeType_identifiesIncomeAndExpense() {
         assertEquals("INCOME", CsvImporter.normalizeType("INCOME", 1000.0))
         assertEquals("INCOME", CsvImporter.normalizeType("Pemasukan", 1000.0))

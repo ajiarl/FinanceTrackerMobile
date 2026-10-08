@@ -113,6 +113,39 @@ class TransferFundsTest {
     }
 
     @Test
+    fun `transferFunds throws exception when amount exceeds fromAccount balance causing overdraft`() {
+        val exception = assertThrows(IllegalArgumentException::class.java) {
+            runBlocking {
+                repository.transferFunds(
+                    fromAccount = accountBca,
+                    toAccount = accountGopay,
+                    amount = 1500000.0,
+                    notes = "Overdraft attempt",
+                    date = "2026-10-07"
+                )
+            }
+        }
+        assertTrue(exception.message!!.contains("tidak mencukupi"))
+    }
+
+    @Test
+    fun `transferFunds succeeds when amount exactly equals fromAccount balance`() = runBlocking {
+        repository.transferFunds(
+            fromAccount = accountBca,
+            toAccount = accountGopay,
+            amount = 1000000.0,
+            notes = "Full balance transfer",
+            date = "2026-10-07"
+        )
+        val updatedBca = fakeAccountDao.getAccountById(1L)
+        assertNotNull(updatedBca)
+        assertEquals(0.0, updatedBca!!.balance, 0.001)
+        val updatedGopay = fakeAccountDao.getAccountById(2L)
+        assertNotNull(updatedGopay)
+        assertEquals(1250000.0, updatedGopay!!.balance, 0.001)
+    }
+
+    @Test
     fun `deleteTransaction with TRANSFER type reverts both accounts`() = runBlocking {
         repository.transferFunds(
             fromAccount = accountBca,

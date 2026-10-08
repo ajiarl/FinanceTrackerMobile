@@ -197,12 +197,24 @@ object CsvImporter {
             errorMsg = "Nominal tidak valid atau kosong ($rawAmount)"
         }
 
+        val resolvedDate: String
+        if (rawDate.isBlank()) {
+            resolvedDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).apply { isLenient = false }.format(Date())
+        } else if (cleanDate != null) {
+            resolvedDate = cleanDate
+        } else {
+            isValid = false
+            val dateError = "Tanggal tidak valid atau format tidak dikenali ($rawDate)"
+            errorMsg = if (errorMsg != null) "$errorMsg, $dateError" else dateError
+            resolvedDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).apply { isLenient = false }.format(Date())
+        }
+
         return ParsedTransaction(
             title = cleanTitle,
             amount = cleanAmount ?: 0.0,
             type = cleanType,
             category = cleanCategory,
-            date = cleanDate,
+            date = resolvedDate,
             notes = rawNotes,
             rawAccountName = rawAccount,
             isValid = isValid,
@@ -272,23 +284,25 @@ object CsvImporter {
     }
 
     /**
-     * Menormalisasi tanggal ke format ISO (yyyy-MM-dd).
+     * Menormalisasi tanggal ke format ISO (yyyy-MM-dd) dengan validasi tanggal ketat (isLenient = false).
+     * Jika format atau nilai tanggal tidak valid (misal: 30 Februari atau 31 April), mengembalikan null.
      */
-    fun normalizeDate(rawDate: String): String {
-        if (rawDate.isBlank()) {
-            return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        }
+    fun normalizeDate(rawDate: String): String? {
+        if (rawDate.isBlank()) return null
 
         val trimmed = rawDate.trim()
-        // Jika sudah ISO yyyy-MM-dd
-        if (trimmed.matches(Regex("^\\d{4}-\\d{2}-\\d{2}.*"))) {
-            return trimmed.take(10)
-        }
 
         val patterns = listOf(
+            "yyyy-MM-dd",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd'T'HH:mm:ss",
             "dd/MM/yyyy",
+            "dd/MM/yyyy HH:mm:ss",
+            "dd/MM/yyyy HH:mm",
             "dd-MM-yyyy",
+            "dd-MM-yyyy HH:mm:ss",
             "yyyy/MM/dd",
+            "yyyy/MM/dd HH:mm:ss",
             "d/M/yyyy",
             "d-M-yyyy",
             "dd MMMM yyyy",
@@ -297,11 +311,11 @@ object CsvImporter {
 
         for (pattern in patterns) {
             try {
-                val sdf = SimpleDateFormat(pattern, Locale("id", "ID"))
+                val sdf = SimpleDateFormat(pattern, Locale.forLanguageTag("id-ID"))
                 sdf.isLenient = false
                 val date = sdf.parse(trimmed)
                 if (date != null) {
-                    return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(date)
+                    return SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }.format(date)
                 }
             } catch (e: Exception) {
                 // Coba dengan locale English
@@ -310,7 +324,7 @@ object CsvImporter {
                     sdfEn.isLenient = false
                     val date = sdfEn.parse(trimmed)
                     if (date != null) {
-                        return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(date)
+                        return SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }.format(date)
                     }
                 } catch (eEn: Exception) {
                     // Lanjut pola berikutnya
@@ -318,8 +332,7 @@ object CsvImporter {
             }
         }
 
-        // Fallback tanggal hari ini jika gagal diparsing
-        return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        return null
     }
 
     /**

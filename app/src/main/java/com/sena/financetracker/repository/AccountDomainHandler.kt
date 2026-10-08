@@ -19,6 +19,16 @@ class AccountDomainHandler(
 ) {
     fun getAllAccounts(): Flow<List<AccountEntity>> = accountDao.getAllAccounts()
 
+    /**
+     * Mentransfer dana antar rekening secara atomik dan mencatat transaksi transfer.
+     *
+     * @param fromAccount Rekening pengirim (sumber dana).
+     * @param toAccount Rekening penerima (tujuan transfer).
+     * @param amount Nominal yang akan ditransfer (harus positif dan tidak melebihi saldo pengirim).
+     * @param notes Catatan transfer opsional.
+     * @param date Tanggal transfer dalam format ISO yyyy-MM-dd.
+     * @throws IllegalArgumentException Jika akun asal dan tujuan sama, amount <= 0, atau saldo tidak mencukupi (overdraft).
+     */
     suspend fun transferFunds(
         fromAccount: AccountEntity,
         toAccount: AccountEntity,
@@ -30,6 +40,11 @@ class AccountDomainHandler(
         require(amount > 0) { "Nominal transfer harus lebih besar dari 0" }
 
         val safeAmount = roundCurrency(amount)
+
+        val currentFromAccount = accountDao.getAccountById(fromAccount.id) ?: fromAccount
+        require(currentFromAccount.balance >= safeAmount) {
+            "Saldo rekening asal (${currentFromAccount.name}) tidak mencukupi untuk transfer"
+        }
 
         accountDao.adjustBalance(fromAccount.id, -safeAmount)
         accountDao.adjustBalance(toAccount.id, safeAmount)
