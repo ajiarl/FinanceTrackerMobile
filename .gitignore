@@ -13,3 +13,16 @@
 local.properties
 app/build/
 *.hprof
+
+# IDE & OS
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Hermes / Worktrees & Temporary Audit
+.worktrees/
+audit_*.txt
+task_*.txt
+verifier_*.txt
+
