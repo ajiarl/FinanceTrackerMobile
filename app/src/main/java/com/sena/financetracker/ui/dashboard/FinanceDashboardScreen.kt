@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,6 +33,7 @@ import androidx.navigation.compose.rememberNavController
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.TransactionEntity
+import com.sena.financetracker.ui.components.NeobrutalErrorBanner
 import com.sena.financetracker.ui.components.NeobrutalFastAddDialog
 import com.sena.financetracker.ui.components.RetroCanvas
 import com.sena.financetracker.ui.components.RetroYellow
@@ -124,6 +126,7 @@ fun FinanceDashboardScreen(
         },
         onRefreshAiInsight = { viewModel.fetchAiInsight() },
         onLoadMoreTransactions = { viewModel.loadMoreTransactions() },
+        onClearErrorMessage = { viewModel.clearErrorMessage() },
         modifier = modifier
     )
 }
@@ -167,6 +170,7 @@ fun FinanceDashboardContent(
     onImportTransactionsBatch: (List<TransactionEntity>, () -> Unit) -> Unit = { _, _ -> },
     onRefreshAiInsight: () -> Unit = {},
     onLoadMoreTransactions: () -> Unit = {},
+    onClearErrorMessage: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -183,46 +187,47 @@ fun FinanceDashboardContent(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Dashboard.route
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = RetroCanvas,
-        bottomBar = {
-            if (currentRoute in Screen.bottomNavItems.map { it.route }) {
-                NeobrutalBottomNav(
-                    currentRoute = currentRoute,
-                    onTabSelected = { targetScreen ->
-                        if (currentRoute != targetScreen.route) {
-                            navController.navigate(targetScreen.route) {
-                                popUpTo(Screen.Dashboard.route) {
-                                    saveState = true
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = RetroCanvas,
+            bottomBar = {
+                if (currentRoute in Screen.bottomNavItems.map { it.route }) {
+                    NeobrutalBottomNav(
+                        currentRoute = currentRoute,
+                        onTabSelected = { targetScreen ->
+                            if (currentRoute != targetScreen.route) {
+                                navController.navigate(targetScreen.route) {
+                                    popUpTo(Screen.Dashboard.route) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
                             }
-                        }
-                    },
-                    isHapticEnabled = uiState.isHapticEnabled
-                )
-            }
-        },
-        floatingActionButton = {
-            val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
-            DashboardFab(onClick = {
-                if (uiState.isHapticEnabled) {
-                    try {
-                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                    } catch (_: Exception) {}
+                        },
+                        isHapticEnabled = uiState.isHapticEnabled
+                    )
                 }
-                showAddDialog = true
-            })
-        },
-        floatingActionButtonPosition = FabPosition.End
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Dashboard.route,
-            modifier = Modifier.padding(innerPadding)
-        ) {
+            },
+            floatingActionButton = {
+                val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+                DashboardFab(onClick = {
+                    if (uiState.isHapticEnabled) {
+                        try {
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        } catch (_: Exception) {}
+                    }
+                    showAddDialog = true
+                })
+            },
+            floatingActionButtonPosition = FabPosition.End
+        ) { innerPadding ->
+            NavHost(
+                navController = navController,
+                startDestination = Screen.Dashboard.route,
+                modifier = Modifier.padding(innerPadding)
+            ) {
             // Tab 1: Beranda
             composable(Screen.Dashboard.route) {
                 HomeScreen(
@@ -348,6 +353,18 @@ fun FinanceDashboardContent(
                 )
             }
         }
+
+        // Global Neobrutal Error Banner Overlay (Floating di atas layar aktif)
+        uiState.errorMessage?.let { errorMsg ->
+            NeobrutalErrorBanner(
+                errorMessage = errorMsg,
+                onDismiss = onClearErrorMessage,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            )
+        }
     }
 
     // Modal Dialog Fast Add Transaksi
@@ -457,6 +474,7 @@ fun FinanceDashboardContent(
             }
         )
     }
+}
 }
 
 @Composable

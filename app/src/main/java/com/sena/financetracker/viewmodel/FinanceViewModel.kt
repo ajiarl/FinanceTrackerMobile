@@ -9,6 +9,7 @@ import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.NotificationEntity
 import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.repository.TransactionRepository
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -73,6 +74,22 @@ class FinanceViewModel(
 
     private val _pageSize = MutableStateFlow(50)
     private val _visibleTransactionCount = MutableStateFlow(50)
+
+    val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        val friendlyMsg = throwable.message?.takeIf { it.isNotBlank() }
+            ?: "Terjadi kesalahan internal pada operasi data"
+        _uiState.value = _uiState.value.copy(
+            errorMessage = friendlyMsg,
+            isLoading = false
+        )
+    }
+
+    /**
+     * Membersihkan pesan galat/error banner dari UI.
+     */
+    fun clearErrorMessage() {
+        _uiState.value = _uiState.value.copy(errorMessage = null)
+    }
 
     init {
         observeData()
@@ -171,7 +188,7 @@ class FinanceViewModel(
             )
         }
 
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             combine(dataFlow, filterParamsFlow) { data, filter ->
                 calculateFinanceTotals(
                     transactions = data.transactions,
@@ -249,7 +266,7 @@ class FinanceViewModel(
      * Menandai notifikasi sebagai sudah dibaca berdasarkan ID.
      */
     fun markNotificationAsRead(id: Long) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.markNotificationAsRead(id)
             } catch (e: Exception) {
@@ -262,7 +279,7 @@ class FinanceViewModel(
      * Menandai seluruh notifikasi yang ada sebagai sudah dibaca.
      */
     fun markAllNotificationsAsRead() {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.markAllNotificationsAsRead()
             } catch (e: Exception) {
@@ -275,7 +292,7 @@ class FinanceViewModel(
      * Menghapus seluruh riwayat notifikasi.
      */
     fun clearAllNotifications() {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.clearAllNotifications()
             } catch (e: Exception) {
@@ -288,7 +305,7 @@ class FinanceViewModel(
      * Menghapus satu notifikasi berdasarkan ID.
      */
     fun deleteNotification(id: Long) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.deleteNotification(id)
             } catch (e: Exception) {
@@ -326,7 +343,7 @@ class FinanceViewModel(
      * Mengosongkan seluruh riwayat database transaksi dan mereset filter.
      */
     fun resetTransactions() {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.resetTransactions()
                 clearFilters()
@@ -344,7 +361,7 @@ class FinanceViewModel(
         onSuccess: (count: Int) -> Unit = {},
         onError: (message: String) -> Unit = {}
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 val insertedIds = repository.insertTransactionsBatch(transactions)
                 onSuccess(insertedIds.size)
@@ -361,7 +378,7 @@ class FinanceViewModel(
      * untuk rentang transaksi tertentu atau transaksi periode yang sedang aktif.
      */
     fun fetchAiInsight(startDate: String? = null, endDate: String? = null) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             _isAiInsightLoading.value = true
             _aiInsightError.value = null
             try {
@@ -426,7 +443,7 @@ class FinanceViewModel(
         limitAmount: Double,
         period: String = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.addBudget(name, category, limitAmount, period)
             } catch (e: Exception) {
@@ -439,7 +456,7 @@ class FinanceViewModel(
      * Menghapus anggaran berdasarkan ID.
      */
     fun deleteBudget(id: Long) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.deleteBudget(id)
             } catch (e: Exception) {
@@ -461,7 +478,7 @@ class FinanceViewModel(
         accountName: String = "Dompet Tunai",
         notes: String = ""
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 val newTx = TransactionEntity(
                     title = title,
@@ -484,7 +501,7 @@ class FinanceViewModel(
      * Menghapus transaksi dan mengembalikan saldo rekening yang terdampak.
      */
     fun deleteTransaction(transaction: TransactionEntity) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.deleteTransaction(transaction)
             } catch (e: Exception) {
@@ -497,7 +514,7 @@ class FinanceViewModel(
      * Memperbarui informasi transaksi yang sudah ada dan melakukan sinkronisasi saldo.
      */
     fun updateTransaction(oldTransaction: TransactionEntity, newTransaction: TransactionEntity) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.updateTransaction(oldTransaction, newTransaction)
             } catch (e: Exception) {
@@ -516,7 +533,7 @@ class FinanceViewModel(
         notes: String = "",
         date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.transferFunds(fromAccount, toAccount, amount, notes, date)
             } catch (e: Exception) {
@@ -533,7 +550,7 @@ class FinanceViewModel(
         type: String,
         initialBalance: Double
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.addAccount(name, type, initialBalance)
             } catch (e: Exception) {
@@ -550,7 +567,7 @@ class FinanceViewModel(
         actualBalance: Double,
         date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.reconcileAccount(account, actualBalance, date)
             } catch (e: Exception) {
@@ -567,7 +584,7 @@ class FinanceViewModel(
         type: String,
         color: String = "#FAFF00"
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.insertCategory(name, type, color)
             } catch (e: Exception) {
@@ -585,7 +602,7 @@ class FinanceViewModel(
         type: String,
         color: String
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.updateCategory(id, name, type, color)
             } catch (e: Exception) {
@@ -598,7 +615,7 @@ class FinanceViewModel(
      * Menghapus kategori kustom berdasarkan ID. Kategori bawaan sistem diproteksi dan ditolak.
      */
     fun deleteCategory(id: Long) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             try {
                 repository.deleteCategory(id)
             } catch (e: Exception) {

@@ -38,6 +38,7 @@ val RetroIncomeGreen = Color(0xFF00E676)
 val RetroIncomeDarkGreen = Color(0xFF00A878)
 val RetroExpenseRed = Color(0xFFFF3B30)
 val RetroExpenseDarkRed = Color(0xFFDC2626)
+val RetroCoralRed = Color(0xFFDC2626)
 val RetroTransferBlue = Color(0xFF007AFF)
 val RetroAccountBlue = Color(0xFF2563EB)
 val RetroBorder = Color(0xFF000000)
@@ -300,6 +301,64 @@ fun NeobrutalSwitch(
                     .background(thumbColor, RectangleShape)
                     .border(1.dp, Color.Black, RectangleShape)
             )
+        }
+    }
+}
+
+/**
+ * Strict Neobrutalism Error Banner / Snackbar:
+ * - Border 2.dp pure black
+ * - Coral Red #DC2626 background
+ * - Hard shadow 4.dp
+ * - Action button ("TUTUP" / "OK")
+ */
+@Composable
+fun NeobrutalErrorBanner(
+    errorMessage: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    actionLabel: String = "TUTUP"
+) {
+    NeobrutalCard(
+        modifier = modifier,
+        backgroundColor = RetroCoralRed,
+        borderWidth = 2.dp,
+        shadowOffset = 4.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = errorMessage,
+                style = TextStyle(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = Color.White
+                ),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp)
+            )
+            NeobrutalButton(
+                onClick = onDismiss,
+                backgroundColor = Color.White,
+                borderWidth = 2.dp,
+                shadowOffset = 2.dp,
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = actionLabel,
+                    style = TextStyle(
+                        fontWeight = FontWeight.Black,
+                        fontSize = 11.sp,
+                        color = Color.Black
+                    )
+                )
+            }
         }
     }
 }
