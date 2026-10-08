@@ -43,6 +43,7 @@ import com.sena.financetracker.ui.components.NeobrutalInputField
 import com.sena.financetracker.ui.components.RetroExpenseRed
 import com.sena.financetracker.ui.components.RetroTransferBlue
 import com.sena.financetracker.ui.components.RetroYellow
+import com.sena.financetracker.ui.components.RupiahVisualTransformation
 import com.sena.financetracker.util.CurrencyParser
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -312,7 +313,8 @@ fun NeobrutalTransferDialog(
                             placeholder = "0",
                             prefix = "Rp ",
                             keyboardType = KeyboardType.Number,
-                            isTabularNums = true
+                            isTabularNums = true,
+                            visualTransformation = RupiahVisualTransformation()
                         )
 
                         // Presets Row (+20k, +50k, +100k, +200k, +500k)

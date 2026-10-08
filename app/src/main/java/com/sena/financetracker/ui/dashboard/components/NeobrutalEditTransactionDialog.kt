@@ -49,6 +49,7 @@ import com.sena.financetracker.ui.components.RetroExpenseRed
 import com.sena.financetracker.ui.components.RetroIncomeGreen
 import com.sena.financetracker.ui.components.RetroTransferBlue
 import com.sena.financetracker.ui.components.RetroYellow
+import com.sena.financetracker.ui.components.RupiahVisualTransformation
 import com.sena.financetracker.util.CurrencyParser
 
 @Composable
@@ -239,7 +240,8 @@ fun NeobrutalEditTransactionDialog(
                             placeholder = "0",
                             prefix = "Rp ",
                             keyboardType = KeyboardType.Number,
-                            isTabularNums = true
+                            isTabularNums = true,
+                            visualTransformation = RupiahVisualTransformation()
                         )
 
                         // Presets Row (#FAFF00 with 2.dp black border and hard shadow)

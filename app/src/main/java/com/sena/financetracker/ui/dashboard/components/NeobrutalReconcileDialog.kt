@@ -47,6 +47,7 @@ import com.sena.financetracker.ui.components.RetroExpenseRed
 import com.sena.financetracker.ui.components.RetroIncomeDarkGreen
 import com.sena.financetracker.ui.components.RetroIncomeGreen
 import com.sena.financetracker.ui.components.RetroYellow
+import com.sena.financetracker.ui.components.RupiahVisualTransformation
 import com.sena.financetracker.util.CurrencyParser
 import com.sena.financetracker.util.formatRupiah
 import kotlin.math.abs
@@ -219,7 +220,8 @@ fun NeobrutalReconcileDialog(
                             placeholder = "0",
                             prefix = "Rp ",
                             keyboardType = KeyboardType.Number,
-                            isTabularNums = true
+                            isTabularNums = true,
+                            visualTransformation = RupiahVisualTransformation()
                         )
 
                         // Quick Button Sesuai Saldo Sistem

@@ -47,6 +47,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.ui.components.RetroExpenseRed
 import com.sena.financetracker.ui.components.RetroYellow
+import com.sena.financetracker.ui.components.RupiahVisualTransformation
 import com.sena.financetracker.util.CurrencyParser
 import com.sena.financetracker.util.formatRupiah
 
@@ -245,6 +246,7 @@ fun NeobrutalAddBudgetDialog(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = RupiahVisualTransformation(),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color.Black,
                             unfocusedBorderColor = Color.Black,

@@ -43,6 +43,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.sena.financetracker.R
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.CategoryEntity
+import com.sena.financetracker.ui.components.RupiahVisualTransformation
 import com.sena.financetracker.util.CurrencyParser
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -237,11 +238,12 @@ fun NeobrutalFastAddDialog(
                                     amountText = input
                                 }
                             },
-                            label = "Jumlah (IDR)",
+                            label = "Nominal (IDR)",
                             placeholder = "0",
                             prefix = "Rp ",
                             keyboardType = KeyboardType.Number,
-                            isTabularNums = true
+                            isTabularNums = true,
+                            visualTransformation = RupiahVisualTransformation()
                         )
 
                         // Presets Row (#FAFF00 with 2.dp black border and hard shadow)

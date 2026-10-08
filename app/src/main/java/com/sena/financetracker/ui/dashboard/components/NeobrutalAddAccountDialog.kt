@@ -41,6 +41,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.sena.financetracker.ui.components.NeobrutalButton
 import com.sena.financetracker.ui.components.NeobrutalInputField
 import com.sena.financetracker.ui.components.RetroYellow
+import com.sena.financetracker.ui.components.RupiahVisualTransformation
 import com.sena.financetracker.util.CurrencyParser
 
 @Composable
@@ -231,7 +232,8 @@ fun NeobrutalAddAccountDialog(
                             placeholder = "0",
                             prefix = "Rp ",
                             keyboardType = KeyboardType.Number,
-                            isTabularNums = true
+                            isTabularNums = true,
+                            visualTransformation = RupiahVisualTransformation()
                         )
 
                         // Quick presets

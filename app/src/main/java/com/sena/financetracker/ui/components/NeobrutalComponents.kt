@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -180,7 +181,8 @@ fun NeobrutalInputField(
     keyboardType: KeyboardType = KeyboardType.Text,
     isTabularNums: Boolean = false,
     singleLine: Boolean = true,
-    prefix: String? = null
+    prefix: String? = null,
+    visualTransformation: VisualTransformation = VisualTransformation.None
 ) {
     Column(modifier = modifier) {
         if (!label.isNullOrBlank()) {
@@ -233,6 +235,7 @@ fun NeobrutalInputField(
                         singleLine = singleLine,
                         cursorBrush = SolidColor(Color.Black),
                         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                        visualTransformation = visualTransformation,
                         textStyle = TextStyle(
                             fontWeight = FontWeight.Black,
                             fontSize = 16.sp,
