@@ -45,7 +45,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.sena.financetracker.data.CategoryEntity
+import com.sena.financetracker.ui.components.RetroExpenseRed
 import com.sena.financetracker.ui.components.RetroYellow
+import com.sena.financetracker.util.CurrencyParser
 import com.sena.financetracker.util.formatRupiah
 
 @Composable
@@ -238,7 +240,7 @@ fun NeobrutalAddBudgetDialog(
                     Spacer(modifier = Modifier.height(4.dp))
                     OutlinedTextField(
                         value = limitInput,
-                        onValueChange = { limitInput = it.filter { char -> char.isDigit() } },
+                        onValueChange = { limitInput = it.filter { char -> char.isDigit() || char == '.' || char == ',' } },
                         placeholder = { Text("Contoh: 1000000", fontSize = 12.sp, color = Color.Gray) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -328,7 +330,7 @@ fun NeobrutalAddBudgetDialog(
                                 .background(RetroYellow, RectangleShape)
                                 .border(2.dp, Color.Black, RectangleShape)
                                 .clickable {
-                                    val parsedLimit = limitInput.toDoubleOrNull() ?: 0.0
+                                    val parsedLimit = CurrencyParser.parseCurrencyInput(limitInput)
                                     when {
                                         name.isBlank() -> {
                                             errorMessage = "Nama anggaran wajib diisi"

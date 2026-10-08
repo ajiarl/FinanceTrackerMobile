@@ -43,6 +43,7 @@ import com.sena.financetracker.ui.components.NeobrutalInputField
 import com.sena.financetracker.ui.components.RetroExpenseRed
 import com.sena.financetracker.ui.components.RetroTransferBlue
 import com.sena.financetracker.ui.components.RetroYellow
+import com.sena.financetracker.util.CurrencyParser
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -73,7 +74,7 @@ fun NeobrutalTransferDialog(
     val toAccount = accounts.find { it.id == toAccountId } ?: accounts.getOrNull(1)
 
     val isSameAccount = fromAccountId == toAccountId
-    val amountVal = amountText.toDoubleOrNull() ?: 0.0
+    val amountVal = CurrencyParser.parseCurrencyInput(amountText)
     val isValid = !isSameAccount && amountVal > 0.0 && fromAccount != null && toAccount != null
 
     val presets = listOf(
@@ -303,7 +304,7 @@ fun NeobrutalTransferDialog(
                         NeobrutalInputField(
                             value = amountText,
                             onValueChange = { input ->
-                                if (input.all { it.isDigit() || it == '.' }) {
+                                if (input.all { it.isDigit() || it == '.' || it == ',' }) {
                                     amountText = input
                                 }
                             },
@@ -335,7 +336,7 @@ fun NeobrutalTransferDialog(
                                             .background(RetroYellow, RectangleShape)
                                             .border(2.dp, Color.Black, RectangleShape)
                                             .clickable {
-                                                val current = amountText.toDoubleOrNull() ?: 0.0
+                                                val current = CurrencyParser.parseCurrencyInput(amountText)
                                                 val updated = current + addAmount
                                                 amountText = updated.toLong().toString()
                                             }

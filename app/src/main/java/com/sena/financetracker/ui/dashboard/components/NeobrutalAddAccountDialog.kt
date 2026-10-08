@@ -41,6 +41,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.sena.financetracker.ui.components.NeobrutalButton
 import com.sena.financetracker.ui.components.NeobrutalInputField
 import com.sena.financetracker.ui.components.RetroYellow
+import com.sena.financetracker.util.CurrencyParser
 
 @Composable
 fun NeobrutalAddAccountDialog(
@@ -57,7 +58,7 @@ fun NeobrutalAddAccountDialog(
         Pair("e-wallet", "E-WALLET")
     )
 
-    val balanceVal = initialBalanceText.toDoubleOrNull() ?: 0.0
+    val balanceVal = CurrencyParser.parseCurrencyInput(initialBalanceText)
     val isValid = accountName.isNotBlank() && balanceVal >= 0.0
 
     val presets = listOf(
@@ -222,7 +223,7 @@ fun NeobrutalAddAccountDialog(
                         NeobrutalInputField(
                             value = initialBalanceText,
                             onValueChange = { input ->
-                                if (input.all { it.isDigit() || it == '.' }) {
+                                if (input.all { it.isDigit() || it == '.' || it == ',' }) {
                                     initialBalanceText = input
                                 }
                             },
@@ -257,7 +258,7 @@ fun NeobrutalAddAccountDialog(
                                                 if (addAmount == 0.0) {
                                                     initialBalanceText = "0"
                                                 } else {
-                                                    val cur = initialBalanceText.toDoubleOrNull() ?: 0.0
+                                                    val cur = CurrencyParser.parseCurrencyInput(initialBalanceText)
                                                     initialBalanceText = (cur + addAmount).toLong().toString()
                                                 }
                                             }

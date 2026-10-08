@@ -47,6 +47,7 @@ import com.sena.financetracker.ui.components.RetroExpenseRed
 import com.sena.financetracker.ui.components.RetroIncomeDarkGreen
 import com.sena.financetracker.ui.components.RetroIncomeGreen
 import com.sena.financetracker.ui.components.RetroYellow
+import com.sena.financetracker.util.CurrencyParser
 import com.sena.financetracker.util.formatRupiah
 import kotlin.math.abs
 
@@ -62,7 +63,7 @@ fun NeobrutalReconcileDialog(
         )
     }
 
-    val actualBalance = actualBalanceText.toDoubleOrNull() ?: 0.0
+    val actualBalance = CurrencyParser.parseCurrencyInput(actualBalanceText)
     val diff = actualBalance - account.balance
     val isValid = actualBalanceText.isNotBlank() && actualBalance >= 0.0
 
@@ -210,7 +211,7 @@ fun NeobrutalReconcileDialog(
                         NeobrutalInputField(
                             value = actualBalanceText,
                             onValueChange = { input ->
-                                if (input.all { it.isDigit() || it == '.' }) {
+                                if (input.all { it.isDigit() || it == '.' || it == ',' }) {
                                     actualBalanceText = input
                                 }
                             },

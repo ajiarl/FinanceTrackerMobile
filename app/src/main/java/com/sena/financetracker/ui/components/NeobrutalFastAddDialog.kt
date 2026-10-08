@@ -43,6 +43,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.sena.financetracker.R
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.CategoryEntity
+import com.sena.financetracker.util.CurrencyParser
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -232,7 +233,7 @@ fun NeobrutalFastAddDialog(
                         NeobrutalInputField(
                             value = amountText,
                             onValueChange = { input ->
-                                if (input.all { it.isDigit() || it == '.' }) {
+                                if (input.all { it.isDigit() || it == '.' || it == ',' }) {
                                     amountText = input
                                 }
                             },
@@ -266,7 +267,7 @@ fun NeobrutalFastAddDialog(
                                             .background(RetroYellow, RectangleShape)
                                             .border(2.dp, Color.Black, RectangleShape)
                                             .clickable {
-                                                val current = amountText.toDoubleOrNull() ?: 0.0
+                                                val current = CurrencyParser.parseCurrencyInput(amountText)
                                                 val updated = current + addAmount
                                                 amountText = updated.toLong().toString()
                                             }
@@ -460,7 +461,7 @@ fun NeobrutalFastAddDialog(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 14.dp)
                 ) {
-                    val amountVal = amountText.toDoubleOrNull() ?: 0.0
+                    val amountVal = CurrencyParser.parseCurrencyInput(amountText)
                     val isValid = amountVal > 0.0 && title.isNotBlank()
                     val context = androidx.compose.ui.platform.LocalContext.current
 

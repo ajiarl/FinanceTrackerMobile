@@ -49,6 +49,7 @@ import com.sena.financetracker.ui.components.RetroExpenseRed
 import com.sena.financetracker.ui.components.RetroIncomeGreen
 import com.sena.financetracker.ui.components.RetroTransferBlue
 import com.sena.financetracker.ui.components.RetroYellow
+import com.sena.financetracker.util.CurrencyParser
 
 @Composable
 fun NeobrutalEditTransactionDialog(
@@ -230,7 +231,7 @@ fun NeobrutalEditTransactionDialog(
                         NeobrutalInputField(
                             value = amountText,
                             onValueChange = { input ->
-                                if (input.all { it.isDigit() || it == '.' }) {
+                                if (input.all { it.isDigit() || it == '.' || it == ',' }) {
                                     amountText = input
                                 }
                             },
@@ -241,7 +242,7 @@ fun NeobrutalEditTransactionDialog(
                             isTabularNums = true
                         )
 
-                        // Presets Row
+                        // Presets Row (#FAFF00 with 2.dp black border and hard shadow)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -264,7 +265,7 @@ fun NeobrutalEditTransactionDialog(
                                             .background(RetroYellow, RectangleShape)
                                             .border(2.dp, Color.Black, RectangleShape)
                                             .clickable {
-                                                val current = amountText.toDoubleOrNull() ?: 0.0
+                                                val current = CurrencyParser.parseCurrencyInput(amountText)
                                                 val updated = current + addAmount
                                                 amountText = updated.toLong().toString()
                                             }
@@ -423,7 +424,7 @@ fun NeobrutalEditTransactionDialog(
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    val amountVal = amountText.toDoubleOrNull() ?: 0.0
+                    val amountVal = CurrencyParser.parseCurrencyInput(amountText)
                     val isValid = amountVal > 0.0 && title.isNotBlank()
 
                     // Tombol Batal
