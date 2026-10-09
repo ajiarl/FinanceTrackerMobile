@@ -4,6 +4,9 @@ import android.content.Context
 import com.sena.financetracker.repository.AccountDomainHandler
 import com.sena.financetracker.repository.TransactionRepository
 import com.sena.financetracker.viewmodel.FinanceViewModel
+import com.sena.financetracker.viewmodel.ReportsPreset
+import com.sena.financetracker.viewmodel.resolveReportsDateRange
+import java.util.Date
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
@@ -358,5 +361,182 @@ class AppDatabaseRollbackRobolectricTest {
         val state3 = viewModel.uiState.filter { it.visibleTransactionCount == 150 && it.searchQuery.isEmpty() && it.filteredTransactions.size == 120 }.first()
         assertEquals(120, state3.filteredTransactions.size)
         assertFalse(state3.hasMoreTransactions)
+    }
+
+    /**
+     * Memverifikasi pemisahan alur laporan analitik (Dedicated Reports SQL Analytics & Preset Isolation).
+     *
+     * 1. Buktikan saat preset LAST_MONTH dipilih, total dan komposisi kategori HANYA menghitung data bulan lalu.
+     * 2. Buktikan saat pencarian daftar transaksi aktif mencari keyword tertentu, data laporan reportsAnalytics tetap utuh.
+     * 3. Buktikan saat pagination daftar dinaikkan dari 50 -> 100 -> 120+, seluruh isi reportsAnalytics identik dan tidak bergeser sama sekali.
+     */
+    @Test
+    fun testDedicatedReportsSqlAnalyticsAndPresetIsolation() = runBlocking {
+        val now = Date()
+        val (thisMonthStart, thisMonthEnd) = resolveReportsDateRange(ReportsPreset.THIS_MONTH, now)
+        val (lastMonthStart, lastMonthEnd) = resolveReportsDateRange(ReportsPreset.LAST_MONTH, now)
+
+        assertNotNull(thisMonthStart)
+        assertNotNull(lastMonthStart)
+
+        // Bersihkan tabel transaksi dari data test sebelumnya jika ada
+        val existing = repository.getAllTransactions().first()
+        for (tx in existing) {
+            repository.deleteTransaction(tx.id)
+        }
+
+        // Siapkan kategori spesifik dengan warna
+        repository.insertCategory(name = "Makanan", type = "EXPENSE", color = "#EF4444")
+        repository.insertCategory(name = "Transportasi", type = "EXPENSE", color = "#3B82F6")
+        repository.insertCategory(name = "Belanja", type = "EXPENSE", color = "#10B981")
+
+        // 1. Masukkan data transaksi bulan lalu (LAST_MONTH)
+        // Income bulan lalu: Gaji 5.000.000
+        val txIncomeLastMonth = TransactionEntity(
+            title = "Gaji Bulan Lalu",
+            amount = 5000000.0,
+            type = "INCOME",
+            category = "Gaji",
+            date = lastMonthStart!!
+        )
+        // Expense 1 bulan lalu: Makanan 1.500.000
+        val txExpFoodLastMonth = TransactionEntity(
+            title = "Makan Siang Resto",
+            amount = 1500000.0,
+            type = "EXPENSE",
+            category = "Makanan",
+            date = lastMonthStart
+        )
+        // Expense 2 bulan lalu: Transportasi 500.000
+        val txExpTransLastMonth = TransactionEntity(
+            title = "Bensin Motor",
+            amount = 500000.0,
+            type = "EXPENSE",
+            category = "Transportasi",
+            date = lastMonthStart
+        )
+        repository.insertTransaction(txIncomeLastMonth)
+        repository.insertTransaction(txExpFoodLastMonth)
+        repository.insertTransaction(txExpTransLastMonth)
+
+        // 2. Masukkan data transaksi bulan ini (THIS_MONTH)
+        // Income bulan ini: Bonus 10.000.000
+        val txIncomeThisMonth = TransactionEntity(
+            title = "Bonus Kinerja",
+            amount = 10000000.0,
+            type = "INCOME",
+            category = "Bonus",
+            date = thisMonthStart!!
+        )
+        // Expense bulan ini: Belanja 3.000.000
+        val txExpShoppingThisMonth = TransactionEntity(
+            title = "Belanja Bulanan",
+            amount = 3000000.0,
+            type = "EXPENSE",
+            category = "Belanja",
+            date = thisMonthStart
+        )
+        repository.insertTransaction(txIncomeThisMonth)
+        repository.insertTransaction(txExpShoppingThisMonth)
+
+        // Tambahkan transaksi dummy bulan ini sebanyak 118 transaksi (total transaksi: 3 + 2 + 118 = 123)
+        for (i in 1..118) {
+            val isEven = i % 2 == 0
+            val dummyTx = TransactionEntity(
+                title = if (isEven) "Bonus Ekstra #$i" else "Belanja Harian #$i",
+                amount = if (isEven) 100000.0 else 50000.0,
+                type = if (isEven) "INCOME" else "EXPENSE",
+                category = if (isEven) "Bonus" else "Belanja",
+                date = thisMonthStart
+            )
+            repository.insertTransaction(dummyTx)
+        }
+
+        val allTx = repository.getAllTransactions().first()
+        assertEquals(123, allTx.size)
+
+        // Inisialisasi ViewModel
+        val viewModel = FinanceViewModel(
+            repository = repository,
+            scopeOverride = CoroutineScope(Dispatchers.Unconfined)
+        )
+
+        // Tunggu state awal siap (50 item pertama)
+        val initialState = viewModel.uiState.filter { !it.isLoading && it.filteredTransactions.size == 50 }.first()
+        assertEquals(50, initialState.filteredTransactions.size)
+
+        // 3. Set preset laporan ke LAST_MONTH
+        viewModel.setReportsPeriodPreset("LAST_MONTH")
+        val stateLastMonth = viewModel.uiState.filter { it.reportsAnalytics.periodPreset == "LAST_MONTH" }.first()
+
+        // PENEGASAN 1: Total dan komposisi kategori HANYA menghitung data bulan lalu
+        val expectedIncomeLastMonth = 5000000.0
+        val expectedExpenseLastMonth = 2000000.0 // 1.500.000 (Makanan) + 500.000 (Transportasi)
+        val expectedNetSavingsLastMonth = 3000000.0
+
+        assertEquals(expectedIncomeLastMonth, stateLastMonth.reportsAnalytics.totalIncome, 0.001)
+        assertEquals(expectedExpenseLastMonth, stateLastMonth.reportsAnalytics.totalExpense, 0.001)
+        assertEquals(expectedNetSavingsLastMonth, stateLastMonth.reportsAnalytics.netSavings, 0.001)
+
+        val breakdownLastMonth = stateLastMonth.reportsAnalytics.categoryBreakdown
+        assertEquals(2, breakdownLastMonth.size)
+        assertEquals("Makanan", breakdownLastMonth[0].category)
+        assertEquals(1500000.0, breakdownLastMonth[0].totalAmount, 0.001)
+        assertEquals(75, breakdownLastMonth[0].percentage)
+        assertEquals("#EF4444", breakdownLastMonth[0].color)
+
+        assertEquals("Transportasi", breakdownLastMonth[1].category)
+        assertEquals(500000.0, breakdownLastMonth[1].totalAmount, 0.001)
+        assertEquals(25, breakdownLastMonth[1].percentage)
+        assertEquals("#3B82F6", breakdownLastMonth[1].color)
+
+        // Pastikan TIDAK ADA "Belanja" (yang merupakan pengeluaran bulan ini)
+        assertFalse(breakdownLastMonth.any { it.category == "Belanja" })
+
+        val originalReports = stateLastMonth.reportsAnalytics
+
+        // PENEGASAN 2: Saat pencarian daftar transaksi aktif mencari keyword tertentu, data laporan tetap utuh sesuai preset LAST_MONTH
+        viewModel.setSearchQuery("Belanja")
+        val stateSearch = viewModel.uiState.filter { it.searchQuery == "Belanja" && it.filteredTransactions.isNotEmpty() }.first()
+
+        // Daftar transaksi terfilter oleh keyword "Belanja"
+        assertTrue(stateSearch.filteredTransactions.all { it.title.contains("Belanja", ignoreCase = true) || it.category.contains("Belanja", ignoreCase = true) })
+
+        // Data laporan reportsAnalytics TETAP UTUH sesuai preset LAST_MONTH
+        assertEquals(originalReports.totalIncome, stateSearch.reportsAnalytics.totalIncome, 0.001)
+        assertEquals(originalReports.totalExpense, stateSearch.reportsAnalytics.totalExpense, 0.001)
+        assertEquals(originalReports.netSavings, stateSearch.reportsAnalytics.netSavings, 0.001)
+        assertEquals(originalReports.categoryBreakdown.size, stateSearch.reportsAnalytics.categoryBreakdown.size)
+        assertEquals("Makanan", stateSearch.reportsAnalytics.categoryBreakdown[0].category)
+        assertEquals("Transportasi", stateSearch.reportsAnalytics.categoryBreakdown[1].category)
+
+        // Reset search query
+        viewModel.setSearchQuery("")
+        val stateSearchReset = viewModel.uiState.filter { it.searchQuery.isEmpty() }.first()
+
+        // PENEGASAN 3: Saat pagination daftar dinaikkan dari 50 -> 100 -> 120+, seluruh isi reportsAnalytics identik dan tidak bergeser sama sekali
+        // Pagination tahap 1: 50 transaksi
+        assertEquals(50, stateSearchReset.filteredTransactions.size)
+        assertEquals(originalReports, stateSearchReset.reportsAnalytics)
+
+        // Pagination tahap 2: naikkan ke 100
+        viewModel.loadMoreTransactions()
+        val statePage100 = viewModel.uiState.filter { it.visibleTransactionCount == 100 && it.filteredTransactions.size == 100 }.first()
+        assertEquals(100, statePage100.filteredTransactions.size)
+        assertEquals(originalReports.totalIncome, statePage100.reportsAnalytics.totalIncome, 0.001)
+        assertEquals(originalReports.totalExpense, statePage100.reportsAnalytics.totalExpense, 0.001)
+        assertEquals(originalReports.netSavings, statePage100.reportsAnalytics.netSavings, 0.001)
+        assertEquals(originalReports.categoryBreakdown, statePage100.reportsAnalytics.categoryBreakdown)
+        assertEquals(originalReports.cashflowBars, statePage100.reportsAnalytics.cashflowBars)
+
+        // Pagination tahap 3: naikkan ke 150 (memuat 123 transaksi)
+        viewModel.loadMoreTransactions()
+        val statePage123 = viewModel.uiState.filter { it.visibleTransactionCount == 150 && it.filteredTransactions.size == 123 }.first()
+        assertEquals(123, statePage123.filteredTransactions.size)
+        assertEquals(originalReports.totalIncome, statePage123.reportsAnalytics.totalIncome, 0.001)
+        assertEquals(originalReports.totalExpense, statePage123.reportsAnalytics.totalExpense, 0.001)
+        assertEquals(originalReports.netSavings, statePage123.reportsAnalytics.netSavings, 0.001)
+        assertEquals(originalReports.categoryBreakdown, statePage123.reportsAnalytics.categoryBreakdown)
+        assertEquals(originalReports.cashflowBars, statePage123.reportsAnalytics.cashflowBars)
     }
 }

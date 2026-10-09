@@ -8,12 +8,15 @@ import com.sena.financetracker.data.BudgetEntity
 import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.CategoryDao
 import com.sena.financetracker.data.CategoryEntity
+import com.sena.financetracker.data.CategoryExpenseSummary
 import com.sena.financetracker.data.FinanceSummary
+import com.sena.financetracker.data.MonthlyCashFlowSummary
 import com.sena.financetracker.data.NotificationDao
 import com.sena.financetracker.data.NotificationEntity
 import com.sena.financetracker.data.PagedTransactionsResult
 import com.sena.financetracker.data.TransactionDao
 import com.sena.financetracker.data.TransactionEntity
+import com.sena.financetracker.viewmodel.ReportsAnalyticsState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
@@ -179,6 +182,43 @@ class TransactionRepository(
         limit = limit,
         offset = offset
     )
+
+    /**
+     * Mengambil daftar agregasi pengeluaran per kategori langsung dari SQLite tanpa memuat seluruh baris transaksi.
+     *
+     * @param startDate Batas awal tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @param endDate Batas akhir tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @return Daftar [CategoryExpenseSummary] terurut dari nominal pengeluaran terbesar.
+     */
+    suspend fun getCategoryExpenseSummary(
+        startDate: String? = null,
+        endDate: String? = null
+    ): List<CategoryExpenseSummary> = transactionDao.getCategoryExpenseSummary(startDate, endDate)
+
+    /**
+     * Mengambil daftar agregasi arus kas per bulan (YYYY-MM) langsung dari SQLite.
+     *
+     * @param startDate Batas awal tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @param endDate Batas akhir tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @return Daftar [MonthlyCashFlowSummary] terurut kronologis bulan.
+     */
+    suspend fun getMonthlyCashFlowSummary(
+        startDate: String? = null,
+        endDate: String? = null
+    ): List<MonthlyCashFlowSummary> = transactionDao.getMonthlyCashFlowSummary(startDate, endDate)
+
+    /**
+     * Menghitung dan menghasilkan ringkasan analitik laporan keuangan lengkap
+     * langsung via agregasi SQL SQLite murni tanpa memuat seluruh entitas transaksi ke RAM.
+     *
+     * @param startDate Batas awal tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @param endDate Batas akhir tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @return [ReportsAnalyticsState] ringkas berisi total income, expense, breakdown kategori, dan diagram arus kas bulanan.
+     */
+    suspend fun getReportsAnalytics(
+        startDate: String? = null,
+        endDate: String? = null
+    ): ReportsAnalyticsState = transactionDao.getReportsAnalytics(startDate, endDate)
 
     /**
      * Mengalirkan sinyal pembaruan data transaksi dari DAO untuk observasi reaktif hemat memori.

@@ -1,8 +1,13 @@
 package com.sena.financetracker.data
 
+import com.sena.financetracker.viewmodel.CashflowBarItem
+import com.sena.financetracker.viewmodel.CategoryBreakdownItem
+import com.sena.financetracker.viewmodel.ReportsAnalyticsState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 /**
  * Ringkasan kalkulasi total pendapatan dan pengeluaran hasil agregasi SQL di database.
@@ -13,6 +18,30 @@ import kotlinx.coroutines.flow.map
 data class FinanceSummary(
     val totalIncome: Double = 0.0,
     val totalExpense: Double = 0.0
+)
+
+/**
+ * Model data agregasi ringkas untuk total pengeluaran per kategori hasil agregasi SQL.
+ *
+ * @property category Nama kategori pengeluaran.
+ * @property totalAmount Akumulasi nominal pengeluaran untuk kategori tersebut.
+ */
+data class CategoryExpenseSummary(
+    val category: String,
+    val totalAmount: Double
+)
+
+/**
+ * Model data agregasi ringkas untuk arus kas bulanan (pemasukan vs pengeluaran) hasil agregasi SQL.
+ *
+ * @property month Label bulan dalam format "YYYY-MM".
+ * @property income Total pemasukan pada bulan tersebut.
+ * @property expense Total pengeluaran pada bulan tersebut.
+ */
+data class MonthlyCashFlowSummary(
+    val month: String,
+    val income: Double,
+    val expense: Double
 )
 
 /**
@@ -135,6 +164,124 @@ interface TransactionDao {
      */
     fun getTransactionUpdateTrigger(): Flow<Long> {
         return getAllTransactions().map { System.currentTimeMillis() }
+    }
+
+    /**
+     * Mengambil daftar agregasi pengeluaran per kategori langsung dari SQLite tanpa memuat seluruh baris transaksi.
+     *
+     * @param startDate Batas awal tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @param endDate Batas akhir tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @return Daftar [CategoryExpenseSummary] terurut dari nominal pengeluaran terbesar.
+     */
+    suspend fun getCategoryExpenseSummary(
+        startDate: String? = null,
+        endDate: String? = null
+    ): List<CategoryExpenseSummary> {
+        val all = getAllTransactions().firstOrNull() ?: emptyList()
+        val filtered = all.filter { tx ->
+            val matchType = tx.type.equals("EXPENSE", ignoreCase = true)
+            val matchStart = startDate.isNullOrBlank() || tx.date >= startDate
+            val matchEnd = endDate.isNullOrBlank() || tx.date <= endDate
+            matchType && matchStart && matchEnd
+        }
+        return filtered.groupBy { it.category.trim() }
+            .map { (cat, list) -> CategoryExpenseSummary(category = cat, totalAmount = list.sumOf { it.amount }) }
+            .sortedByDescending { it.totalAmount }
+    }
+
+    /**
+     * Mengambil daftar agregasi arus kas per bulan (YYYY-MM) langsung dari SQLite.
+     *
+     * @param startDate Batas awal tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @param endDate Batas akhir tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @return Daftar [MonthlyCashFlowSummary] terurut kronologis bulan.
+     */
+    suspend fun getMonthlyCashFlowSummary(
+        startDate: String? = null,
+        endDate: String? = null
+    ): List<MonthlyCashFlowSummary> {
+        val all = getAllTransactions().firstOrNull() ?: emptyList()
+        val filtered = all.filter { tx ->
+            val matchStart = startDate.isNullOrBlank() || tx.date >= startDate
+            val matchEnd = endDate.isNullOrBlank() || tx.date <= endDate
+            matchStart && matchEnd
+        }
+        return filtered.groupBy { if (it.date.length >= 7) it.date.take(7) else it.date }
+            .map { (month, list) ->
+                val inc = list.filter { it.type.equals("INCOME", ignoreCase = true) }.sumOf { it.amount }
+                val exp = list.filter { it.type.equals("EXPENSE", ignoreCase = true) }.sumOf { it.amount }
+                MonthlyCashFlowSummary(month = month, income = inc, expense = exp)
+            }
+            .sortedBy { it.month }
+    }
+
+    /**
+     * Menghitung dan menghasilkan ringkasan analitik laporan keuangan lengkap
+     * langsung via agregasi SQL SQLite murni tanpa memuat seluruh entitas transaksi ke RAM.
+     *
+     * @param startDate Batas awal tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @param endDate Batas akhir tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @return [ReportsAnalyticsState] ringkas berisi total income, expense, breakdown kategori, dan diagram arus kas bulanan.
+     */
+    suspend fun getReportsAnalytics(
+        startDate: String? = null,
+        endDate: String? = null
+    ): ReportsAnalyticsState {
+        val summary = getFinanceSummary(query = null, category = null, startDate = startDate, endDate = endDate)
+        val catSummaries = getCategoryExpenseSummary(startDate = startDate, endDate = endDate)
+        val cfSummaries = getMonthlyCashFlowSummary(startDate = startDate, endDate = endDate)
+
+        val totalIncome = summary.totalIncome
+        val totalExpense = summary.totalExpense
+        val netSavings = totalIncome - totalExpense
+        val savingRate = if (totalIncome > 0) {
+            val rate = ((netSavings / totalIncome) * 100).toInt()
+            rate.coerceIn(-100, 100)
+        } else if (totalExpense > 0) {
+            -100
+        } else {
+            0
+        }
+        val savingStatus = when {
+            totalIncome == 0.0 && totalExpense == 0.0 -> "NORMAL"
+            savingRate >= 30 -> "HEMAT"
+            savingRate >= 10 -> "NORMAL"
+            else -> "BOROS"
+        }
+
+        val defaultColors = listOf("#F97316", "#3B82F6", "#EC4899", "#8B5CF6", "#10B981", "#EAB308", "#64748B")
+        val breakdownItems = catSummaries.map { cat ->
+            val pct = if (totalExpense > 0) ((cat.totalAmount / totalExpense) * 100).toInt() else 0
+            val displayName = cat.category.trim().ifBlank { "Lainnya" }
+            CategoryBreakdownItem(
+                category = displayName,
+                totalAmount = cat.totalAmount,
+                percentage = pct,
+                color = defaultColors[Math.abs(displayName.hashCode()) % defaultColors.size]
+            )
+        }
+
+        val sdfMonth = SimpleDateFormat("yyyy-MM", Locale.ROOT)
+        val sdfDisplayMonth = SimpleDateFormat("MMM yy", Locale.forLanguageTag("id-ID"))
+        val cashflowBars = cfSummaries.map { cf ->
+            val label = try {
+                val d = sdfMonth.parse(cf.month)
+                if (d != null) sdfDisplayMonth.format(d).uppercase(Locale.ROOT) else cf.month
+            } catch (e: Exception) {
+                cf.month
+            }
+            CashflowBarItem(label = label, income = cf.income, expense = cf.expense)
+        }
+
+        return ReportsAnalyticsState(
+            totalIncome = totalIncome,
+            totalExpense = totalExpense,
+            netSavings = netSavings,
+            savingRate = savingRate,
+            savingStatus = savingStatus,
+            categoryBreakdown = breakdownItems,
+            cashflowBars = cashflowBars
+        )
     }
 
     suspend fun deleteTransaction(id: Long)

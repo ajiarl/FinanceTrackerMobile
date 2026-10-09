@@ -39,14 +39,88 @@ data class CashflowBarItem(
 )
 
 /**
- * Ringkasan kalkulasi analitik laporan keuangan.
+ * Pilihan preset periode waktu untuk laporan analitik keuangan.
+ */
+enum class ReportsPreset {
+    THIS_MONTH,
+    LAST_MONTH,
+    LAST_3_MONTHS,
+    ALL_TIME;
+
+    companion object {
+        fun fromString(value: String): ReportsPreset {
+            return entries.firstOrNull { it.name.equals(value.trim(), ignoreCase = true) } ?: THIS_MONTH
+        }
+    }
+}
+
+/**
+ * Menghitung rentang tanggal [startDate, endDate] dalam format YYYY-MM-DD berdasarkan preset analitik laporan.
  *
- * @property periodPreset Filter preset waktu ("THIS_MONTH", "LAST_MONTH", "LAST_3_MONTHS", "ALL_TIME").
- * @property totalIncome Total pemasukan pada periode analitik.
- * @property totalExpense Total pengeluaran pada periode analitik.
- * @property netSavings Selisih bersih pemasukan dikurangi pengeluaran.
- * @property savingRate Persentase rasio tabungan (Saving Rate %).
- * @property savingStatus Status rasio tabungan ("HEMAT", "NORMAL", "BOROS").
+ * @param preset Pilihan preset periode laporan ([ReportsPreset]).
+ * @param referenceDate Tanggal acuan kalender (default hari ini).
+ * @return Pasangan tanggal batas awal dan akhir (startDate, endDate). Untuk [ReportsPreset.ALL_TIME], bernilai Pair(null, null).
+ */
+fun resolveReportsDateRange(
+    preset: ReportsPreset,
+    referenceDate: Date = Date()
+): Pair<String?, String?> {
+    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT)
+    return when (preset) {
+        ReportsPreset.THIS_MONTH -> {
+            val cal = Calendar.getInstance().apply { time = referenceDate }
+            cal.set(Calendar.DAY_OF_MONTH, 1)
+            val start = sdf.format(cal.time)
+            cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+            val end = sdf.format(cal.time)
+            Pair(start, end)
+        }
+        ReportsPreset.LAST_MONTH -> {
+            val cal = Calendar.getInstance().apply {
+                time = referenceDate
+                add(Calendar.MONTH, -1)
+            }
+            cal.set(Calendar.DAY_OF_MONTH, 1)
+            val start = sdf.format(cal.time)
+            cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+            val end = sdf.format(cal.time)
+            Pair(start, end)
+        }
+        ReportsPreset.LAST_3_MONTHS -> {
+            val endCal = Calendar.getInstance().apply {
+                time = referenceDate
+                set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
+            }
+            val end = sdf.format(endCal.time)
+            val startCal = Calendar.getInstance().apply {
+                time = referenceDate
+                add(Calendar.MONTH, -2)
+                set(Calendar.DAY_OF_MONTH, 1)
+            }
+            val start = sdf.format(startCal.time)
+            Pair(start, end)
+        }
+        ReportsPreset.ALL_TIME -> Pair(null, null)
+    }
+}
+
+/**
+ * Menghitung rentang tanggal [startDate, endDate] berdasarkan string preset.
+ */
+fun resolveReportsDateRange(
+    preset: String,
+    referenceDate: Date = Date()
+): Pair<String?, String?> = resolveReportsDateRange(ReportsPreset.fromString(preset), referenceDate)
+
+/**
+ * State analitik laporan keuangan & diagram arus kas.
+ *
+ * @property periodPreset Pilihan filter periode laporan ("THIS_MONTH", "LAST_MONTH", "LAST_3_MONTHS", "ALL_TIME").
+ * @property totalIncome Total pendapatan dalam periode terpilih.
+ * @property totalExpense Total pengeluaran dalam periode terpilih.
+ * @property netSavings Selisih bersih (Pendapatan - Pengeluaran).
+ * @property savingRate Rasio tabungan dalam persentase (0 - 100%).
+ * @property savingStatus Status kesehatan tabungan ("HEMAT", "NORMAL", "BOROS").
  * @property categoryBreakdown Daftar pengeluaran per kategori terurut dari terbesar.
  * @property cashflowBars Data diagram batang perbandingan pemasukan vs pengeluaran.
  */

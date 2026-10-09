@@ -89,7 +89,8 @@ class FinanceViewModel(
     private val _selectedCategoryFilter = MutableStateFlow<String?>(null)
     private val _selectedDateFilter = MutableStateFlow("ALL")
     private val _selectedFilterTab = MutableStateFlow("ALL")
-    private val _reportsPeriodPreset = MutableStateFlow("THIS_MONTH")
+    private val _selectedReportsPreset = MutableStateFlow(ReportsPreset.THIS_MONTH)
+    val selectedReportsPreset: StateFlow<ReportsPreset> = _selectedReportsPreset.asStateFlow()
     private val _aiInsightText = MutableStateFlow<String?>(null)
     private val _isAiInsightLoading = MutableStateFlow(false)
     private val _aiInsightError = MutableStateFlow<String?>(null)
@@ -123,7 +124,6 @@ class FinanceViewModel(
         val category: String?,
         val dateFilter: String,
         val typeFilter: String,
-        val reportsPreset: String,
         val aiInsightText: String?,
         val isAiInsightLoading: Boolean,
         val aiInsightError: String?,
@@ -185,16 +185,15 @@ class FinanceViewModel(
         val pagingFlow = combine(_pageSize, _visibleTransactionCount, _hasApiKey) { size, count, hasKey -> Triple(size, count, hasKey) }
         val filterParamsFlow = combine(
             combine(debouncedSearchQuery, _selectedCategoryFilter, _selectedDateFilter) { q, c, d -> Triple(q, c, d) },
-            combine(_selectedFilterTab, _reportsPeriodPreset) { t, r -> Pair(t, r) },
+            _selectedFilterTab,
             combine(_aiInsightText, _isAiInsightLoading, _aiInsightError) { text, loading, err -> Triple(text, loading, err) },
             pagingFlow
-        ) { (query, category, dateFilter), (typeFilter, reportsPreset), (aiText, aiLoading, aiErr), (pageSize, visibleCount, hasKey) ->
+        ) { (query, category, dateFilter), typeFilter, (aiText, aiLoading, aiErr), (pageSize, visibleCount, hasKey) ->
             FilterParams(
                 query = query,
                 category = category,
                 dateFilter = dateFilter,
                 typeFilter = typeFilter,
-                reportsPreset = reportsPreset,
                 aiInsightText = aiText,
                 isAiInsightLoading = aiLoading,
                 aiInsightError = aiErr,
@@ -237,6 +236,14 @@ class FinanceViewModel(
             PagedAndSummary(summary, pagedResult, filter)
         }
 
+        val reportsFlow: Flow<ReportsAnalyticsState> = combine(
+            _selectedReportsPreset,
+            repository.getTransactionUpdateTrigger()
+        ) { preset, _ ->
+            val (start, end) = resolveReportsDateRange(preset)
+            repository.getReportsAnalytics(start, end).copy(periodPreset = preset.name)
+        }
+
         val coreDataFlow: Flow<CoreData> = combine(
             repository.getAllAccounts(),
             repository.getAllCategories(),
@@ -255,10 +262,11 @@ class FinanceViewModel(
         activeScope.launch(coroutineExceptionHandler) {
             combine(
                 pagedTransactionsAndSummaryFlow,
+                reportsFlow,
                 coreDataFlow,
                 notifDataFlow,
                 repository.isHapticEnabled()
-            ) { pagedSummary: PagedAndSummary, core: CoreData, notif: NotifData, haptic: Boolean ->
+            ) { pagedSummary: PagedAndSummary, reports: ReportsAnalyticsState, core: CoreData, notif: NotifData, haptic: Boolean ->
                 val summary = pagedSummary.summary
                 val pagedResult = pagedSummary.pagedResult
                 val filter = pagedSummary.filter
@@ -273,33 +281,6 @@ class FinanceViewModel(
                 } else {
                     totalIncome - totalExpense
                 }
-
-                val netSavings = totalIncome - totalExpense
-                val savingRate = if (totalIncome > 0) {
-                    ((netSavings / totalIncome) * 100).toInt().coerceIn(-100, 100)
-                } else if (totalExpense > 0) {
-                    -100
-                } else {
-                    0
-                }
-                val savingStatus = when {
-                    totalIncome == 0.0 && totalExpense == 0.0 -> "NORMAL"
-                    savingRate >= 30 -> "HEMAT"
-                    savingRate >= 10 -> "NORMAL"
-                    else -> "BOROS"
-                }
-
-                val reportsAnalytics = calculateReportsAnalytics(
-                    transactions = pagedResult.transactions,
-                    categories = categories,
-                    preset = filter.reportsPreset
-                ).copy(
-                    totalIncome = totalIncome,
-                    totalExpense = totalExpense,
-                    netSavings = netSavings,
-                    savingRate = savingRate,
-                    savingStatus = savingStatus
-                )
 
                 FinanceUiState(
                     transactions = pagedResult.transactions,
@@ -318,7 +299,7 @@ class FinanceViewModel(
                     selectedCategoryFilter = filter.category,
                     selectedDateFilter = filter.dateFilter,
                     selectedFilterTab = filter.typeFilter,
-                    reportsAnalytics = reportsAnalytics,
+                    reportsAnalytics = reports,
                     aiInsightText = filter.aiInsightText,
                     isAiInsightLoading = filter.isAiInsightLoading,
                     aiInsightError = filter.aiInsightError,
@@ -365,7 +346,21 @@ class FinanceViewModel(
      * Memperbarui filter preset waktu analitik laporan ("THIS_MONTH", "LAST_MONTH", "LAST_3_MONTHS", "ALL_TIME").
      */
     fun setReportsPeriodPreset(preset: String) {
-        _reportsPeriodPreset.value = preset
+        _selectedReportsPreset.value = ReportsPreset.fromString(preset)
+    }
+
+    /**
+     * Memperbarui filter preset waktu analitik laporan dengan enum [ReportsPreset].
+     */
+    fun setReportsPeriodPreset(preset: ReportsPreset) {
+        _selectedReportsPreset.value = preset
+    }
+
+    /**
+     * Memperbarui filter preset waktu analitik laporan dengan enum [ReportsPreset].
+     */
+    fun setReportsPreset(preset: ReportsPreset) {
+        _selectedReportsPreset.value = preset
     }
 
     /**
@@ -687,19 +682,19 @@ class FinanceViewModel(
                         cal3.add(Calendar.MONTH, -1)
                     }
 
-                    when (_reportsPeriodPreset.value) {
-                        "THIS_MONTH" -> allTx.filter { it.date.take(7) == thisMonthStr }
-                        "LAST_MONTH" -> allTx.filter { it.date.take(7) == lastMonthStr }
-                        "LAST_3_MONTHS" -> allTx.filter { last3MonthsSet.contains(it.date.take(7)) }
-                        else -> allTx
+                    when (_selectedReportsPreset.value) {
+                        ReportsPreset.THIS_MONTH -> allTx.filter { it.date.take(7) == thisMonthStr }
+                        ReportsPreset.LAST_MONTH -> allTx.filter { it.date.take(7) == lastMonthStr }
+                        ReportsPreset.LAST_3_MONTHS -> allTx.filter { last3MonthsSet.contains(it.date.take(7)) }
+                        ReportsPreset.ALL_TIME -> allTx
                     }
                 }
 
-                val periodTitle = when (_reportsPeriodPreset.value) {
-                    "LAST_MONTH" -> "Bulan Lalu"
-                    "LAST_3_MONTHS" -> "3 Bulan Terakhir"
-                    "ALL_TIME" -> "Semua Waktu"
-                    else -> "Bulan Ini"
+                val periodTitle = when (_selectedReportsPreset.value) {
+                    ReportsPreset.LAST_MONTH -> "Bulan Lalu"
+                    ReportsPreset.LAST_3_MONTHS -> "3 Bulan Terakhir"
+                    ReportsPreset.ALL_TIME -> "Semua Waktu"
+                    ReportsPreset.THIS_MONTH -> "Bulan Ini"
                 }
 
                 val currentApiKey = if (context != null) {

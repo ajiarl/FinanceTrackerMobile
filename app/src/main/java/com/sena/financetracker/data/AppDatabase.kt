@@ -13,6 +13,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.sena.financetracker.viewmodel.CashflowBarItem
+import com.sena.financetracker.viewmodel.CategoryBreakdownItem
+import com.sena.financetracker.viewmodel.ReportsAnalyticsState
+import java.text.SimpleDateFormat
 import java.util.Locale
 
 /**
@@ -380,6 +384,183 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             val hasMore = list.size > limit
             val resultList = if (hasMore) list.take(limit) else list
             PagedTransactionsResult(transactions = resultList, hasMore = hasMore)
+        }
+
+        override suspend fun getCategoryExpenseSummary(
+            startDate: String?,
+            endDate: String?
+        ): List<CategoryExpenseSummary> = withContext(Dispatchers.IO) {
+            val db = readableDatabase
+            val conditions = mutableListOf("UPPER(type) = 'EXPENSE'")
+            val args = mutableListOf<String>()
+            if (!startDate.isNullOrBlank()) {
+                conditions.add("date >= ?")
+                args.add(startDate.trim())
+            }
+            if (!endDate.isNullOrBlank()) {
+                conditions.add("date <= ?")
+                args.add(endDate.trim())
+            }
+            val where = "WHERE " + conditions.joinToString(" AND ")
+            val sql = """
+                SELECT TRIM(category) AS category, COALESCE(SUM(amount), 0.0) AS totalAmount
+                FROM $TABLE_TRANSACTIONS
+                $where
+                GROUP BY LOWER(TRIM(category))
+                ORDER BY totalAmount DESC
+            """.trimIndent()
+
+            val result = mutableListOf<CategoryExpenseSummary>()
+            val cursor = db.rawQuery(sql, if (args.isNotEmpty()) args.toTypedArray() else null)
+            cursor.use { c ->
+                while (c.moveToNext()) {
+                    val catName = c.getString(c.getColumnIndexOrThrow("category")) ?: ""
+                    val amount = c.getDouble(c.getColumnIndexOrThrow("totalAmount"))
+                    result.add(CategoryExpenseSummary(category = catName, totalAmount = amount))
+                }
+            }
+            result
+        }
+
+        override suspend fun getMonthlyCashFlowSummary(
+            startDate: String?,
+            endDate: String?
+        ): List<MonthlyCashFlowSummary> = withContext(Dispatchers.IO) {
+            val db = readableDatabase
+            val conditions = mutableListOf<String>()
+            val args = mutableListOf<String>()
+            if (!startDate.isNullOrBlank()) {
+                conditions.add("date >= ?")
+                args.add(startDate.trim())
+            }
+            if (!endDate.isNullOrBlank()) {
+                conditions.add("date <= ?")
+                args.add(endDate.trim())
+            }
+            val where = if (conditions.isNotEmpty()) "WHERE " + conditions.joinToString(" AND ") else ""
+            val sql = """
+                SELECT 
+                    substr(date, 1, 7) AS month,
+                    COALESCE(SUM(CASE WHEN UPPER(type) = 'INCOME' THEN amount ELSE 0.0 END), 0.0) AS income,
+                    COALESCE(SUM(CASE WHEN UPPER(type) = 'EXPENSE' THEN amount ELSE 0.0 END), 0.0) AS expense
+                FROM $TABLE_TRANSACTIONS
+                $where
+                GROUP BY substr(date, 1, 7)
+                ORDER BY month ASC
+            """.trimIndent()
+
+            val result = mutableListOf<MonthlyCashFlowSummary>()
+            val cursor = db.rawQuery(sql, if (args.isNotEmpty()) args.toTypedArray() else null)
+            cursor.use { c ->
+                while (c.moveToNext()) {
+                    val monthStr = c.getString(c.getColumnIndexOrThrow("month")) ?: ""
+                    val inc = c.getDouble(c.getColumnIndexOrThrow("income"))
+                    val exp = c.getDouble(c.getColumnIndexOrThrow("expense"))
+                    result.add(MonthlyCashFlowSummary(month = monthStr, income = inc, expense = exp))
+                }
+            }
+            result
+        }
+
+        override suspend fun getReportsAnalytics(
+            startDate: String?,
+            endDate: String?
+        ): ReportsAnalyticsState = withContext(Dispatchers.IO) {
+            val db = readableDatabase
+            val conditions = mutableListOf<String>()
+            val args = mutableListOf<String>()
+            if (!startDate.isNullOrBlank()) {
+                conditions.add("date >= ?")
+                args.add(startDate.trim())
+            }
+            if (!endDate.isNullOrBlank()) {
+                conditions.add("date <= ?")
+                args.add(endDate.trim())
+            }
+            val where = if (conditions.isNotEmpty()) "WHERE " + conditions.joinToString(" AND ") else ""
+            val totalSql = """
+                SELECT 
+                    COALESCE(SUM(CASE WHEN UPPER(type) = 'INCOME' THEN amount ELSE 0.0 END), 0.0) AS totalIncome,
+                    COALESCE(SUM(CASE WHEN UPPER(type) = 'EXPENSE' THEN amount ELSE 0.0 END), 0.0) AS totalExpense
+                FROM $TABLE_TRANSACTIONS
+                $where
+            """.trimIndent()
+
+            var totalIncome = 0.0
+            var totalExpense = 0.0
+            val summaryCursor = db.rawQuery(totalSql, if (args.isNotEmpty()) args.toTypedArray() else null)
+            summaryCursor.use { c ->
+                if (c.moveToFirst()) {
+                    totalIncome = c.getDouble(c.getColumnIndexOrThrow("totalIncome"))
+                    totalExpense = c.getDouble(c.getColumnIndexOrThrow("totalExpense"))
+                }
+            }
+
+            // Ambil mapping warna dari tabel categories
+            val colorMap = mutableMapOf<String, String>()
+            val catCursor = db.query(TABLE_CATEGORIES, arrayOf(COL_CAT_NAME, COL_CAT_COLOR), null, null, null, null, null)
+            catCursor.use { c ->
+                while (c.moveToNext()) {
+                    val name = c.getString(c.getColumnIndexOrThrow(COL_CAT_NAME)).trim().lowercase(Locale.ROOT)
+                    val color = c.getString(c.getColumnIndexOrThrow(COL_CAT_COLOR))
+                    colorMap[name] = color
+                }
+            }
+
+            val defaultColors = listOf("#F97316", "#3B82F6", "#EC4899", "#8B5CF6", "#10B981", "#EAB308", "#64748B")
+            val catSummaries = getCategoryExpenseSummary(startDate, endDate)
+            val categoryBreakdown = catSummaries.map { cat ->
+                val displayName = cat.category.trim().ifBlank { "Lainnya" }
+                val pct = if (totalExpense > 0.0) ((cat.totalAmount / totalExpense) * 100).toInt() else 0
+                val col = colorMap[cat.category.trim().lowercase(Locale.ROOT)]
+                    ?: defaultColors[Math.abs(displayName.hashCode()) % defaultColors.size]
+                CategoryBreakdownItem(
+                    category = displayName,
+                    totalAmount = cat.totalAmount,
+                    percentage = pct,
+                    color = col
+                )
+            }
+
+            val cfSummaries = getMonthlyCashFlowSummary(startDate, endDate)
+            val sdfMonth = SimpleDateFormat("yyyy-MM", Locale.ROOT)
+            val sdfDisplayMonth = SimpleDateFormat("MMM yy", Locale.forLanguageTag("id-ID"))
+            val cashflowBars = cfSummaries.map { cf ->
+                val label = try {
+                    val d = sdfMonth.parse(cf.month)
+                    if (d != null) sdfDisplayMonth.format(d).uppercase(Locale.ROOT) else cf.month
+                } catch (e: Exception) {
+                    cf.month
+                }
+                CashflowBarItem(label = label, income = cf.income, expense = cf.expense)
+            }
+
+            val netSavings = totalIncome - totalExpense
+            val savingRate = if (totalIncome > 0) {
+                val rate = ((netSavings / totalIncome) * 100).toInt()
+                rate.coerceIn(-100, 100)
+            } else if (totalExpense > 0) {
+                -100
+            } else {
+                0
+            }
+
+            val savingStatus = when {
+                totalIncome == 0.0 && totalExpense == 0.0 -> "NORMAL"
+                savingRate >= 30 -> "HEMAT"
+                savingRate >= 10 -> "NORMAL"
+                else -> "BOROS"
+            }
+
+            ReportsAnalyticsState(
+                totalIncome = totalIncome,
+                totalExpense = totalExpense,
+                netSavings = netSavings,
+                savingRate = savingRate,
+                savingStatus = savingStatus,
+                categoryBreakdown = categoryBreakdown,
+                cashflowBars = cashflowBars
+            )
         }
 
         override suspend fun insertTransaction(transaction: TransactionEntity): Long = withContext(Dispatchers.IO) {
