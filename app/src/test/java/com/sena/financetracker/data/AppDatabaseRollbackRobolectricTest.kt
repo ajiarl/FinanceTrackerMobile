@@ -839,10 +839,13 @@ class AppDatabaseRollbackRobolectricTest {
         assertEquals(1350000.0, state.reportsAnalytics.totalExpense, 0.001)
 
         // Panggil fetchAiInsight tanpa parameter (harus otomatis mengambil periode preset LAST_MONTH)
-        viewModel.fetchAiInsight()
+        val requestId = viewModel.fetchAiInsight()
 
-        // Tunggu hingga proses insight selesai dan teks terisi
-        val insightState = viewModel.uiState.filter { it.aiInsightText != null || it.aiInsightError != null }.first()
+        // Tunggu hingga proses insight selesai menggunakan korelasi requestId
+        val insightState = viewModel.uiState.first {
+            it.completedInsightRequestId == requestId && !it.isAiInsightLoading
+        }
+        assertEquals(requestId, insightState.completedInsightRequestId)
         assertNull(insightState.aiInsightError)
         assertNotNull(insightState.aiInsightText)
         assertTrue(insightState.aiInsightText!!.isNotBlank())
@@ -964,9 +967,11 @@ class AppDatabaseRollbackRobolectricTest {
 
         // 5. Kasus A: Minta AI Insight untuk Periode September (LAST_MONTH)
         viewModel.setReportsPeriodPreset("LAST_MONTH")
-        viewModel.fetchAiInsight()
+        val reqIdSep = viewModel.fetchAiInsight()
 
-        val sepInsightState = viewModel.uiState.filter { it.aiInsightText != null }.first()
+        val sepInsightState = viewModel.uiState.first {
+            it.completedInsightRequestId == reqIdSep && !it.isAiInsightLoading
+        }
         val sepInsight = sepInsightState.aiInsightText!!
         // Insight September TIDAK BOLEH mengklaim anggaran Makanan jebol
         assertFalse(
@@ -976,9 +981,11 @@ class AppDatabaseRollbackRobolectricTest {
 
         // 6. Kasus B: Minta AI Insight untuk Periode Oktober (THIS_MONTH)
         viewModel.setReportsPeriodPreset("THIS_MONTH")
-        viewModel.fetchAiInsight()
+        val reqIdOct = viewModel.fetchAiInsight()
 
-        val octInsightState = viewModel.uiState.filter { it.aiInsightText != null && it.aiInsightText != sepInsight }.first()
+        val octInsightState = viewModel.uiState.first {
+            it.completedInsightRequestId == reqIdOct && !it.isAiInsightLoading
+        }
         val octInsight = octInsightState.aiInsightText!!
         // Insight Oktober WAJIB mendeteksi anggaran Makanan jebol
         assertTrue(
@@ -988,9 +995,11 @@ class AppDatabaseRollbackRobolectricTest {
 
         // 7. Kasus C: Minta AI Insight untuk Periode Multi-Bulan (LAST_3_MONTHS)
         viewModel.setReportsPeriodPreset("LAST_3_MONTHS")
-        viewModel.fetchAiInsight()
+        val reqIdMulti = viewModel.fetchAiInsight()
 
-        val multiInsightState = viewModel.uiState.filter { it.aiInsightText != null && it.aiInsightText != octInsight }.first()
+        val multiInsightState = viewModel.uiState.first {
+            it.completedInsightRequestId == reqIdMulti && !it.isAiInsightLoading
+        }
         val multiInsight = multiInsightState.aiInsightText!!
         // AI Insight untuk multi-bulan TIDAK BOLEH mengklaim anggaran jebol ataupun aman,
         // melainkan wajib menyatakan evaluasi batas anggaran bulanan tidak dihitung
@@ -1002,5 +1011,128 @@ class AppDatabaseRollbackRobolectricTest {
             "AI Insight multi-bulan dilarang mengklaim anggaran jebol berantakan",
             multiInsight.contains("Anggaran kamu jebol berantakan")
         )
+    }
+
+    @Test
+    fun testAiInsightStaleRequestDiscardedOnConcurrentRequests() = runBlocking {
+        // 1. Bersihkan data lama agar state terisolasi
+        val existingTxs = repository.getAllTransactions().first()
+        for (tx in existingTxs) {
+            repository.deleteTransaction(tx.id)
+        }
+
+        val accounts = repository.getAllAccounts().first()
+        val accountId = if (accounts.isNotEmpty()) accounts[0].id else {
+            appDb.accountDao.insertAccount(
+                AccountEntity(
+                    name = "BCA Utama",
+                    type = "BANK",
+                    balance = 10_000_000.0
+                )
+            )
+        }
+
+        // Siapkan transaksi September 2026 (Request 1 / Lambat)
+        repository.insertTransaction(
+            TransactionEntity(
+                title = "Gaji September",
+                amount = 2_000_000.0,
+                type = "INCOME",
+                category = "Gaji",
+                date = "2026-09-01",
+                accountId = accountId
+            )
+        )
+        repository.insertTransaction(
+            TransactionEntity(
+                title = "Belanja September Unik",
+                amount = 250_000.0,
+                type = "EXPENSE",
+                category = "Belanja",
+                date = "2026-09-15",
+                accountId = accountId
+            )
+        )
+
+        // Siapkan transaksi Oktober 2026 (Request 2 / Cepat)
+        repository.insertTransaction(
+            TransactionEntity(
+                title = "Gaji Oktober",
+                amount = 7_000_000.0,
+                type = "INCOME",
+                category = "Gaji",
+                date = "2026-10-01",
+                accountId = accountId
+            )
+        )
+        repository.insertTransaction(
+            TransactionEntity(
+                title = "Liburan Oktober Unik",
+                amount = 1_500_000.0,
+                type = "EXPENSE",
+                category = "Hiburan",
+                date = "2026-10-10",
+                accountId = accountId
+            )
+        )
+
+        // 2. Gunakan CompletableDeferred untuk menahan Request 1 (September) secara terkontrol
+        val pauseRequest1 = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val slowTransactionDao = object : TransactionDao by appDb.transactionDao {
+            override suspend fun getTransactionsForPeriod(
+                startDate: String?,
+                endDate: String?,
+                limit: Int
+            ): List<TransactionEntity> {
+                if (startDate?.startsWith("2026-09") == true) {
+                    pauseRequest1.await()
+                }
+                return appDb.transactionDao.getTransactionsForPeriod(startDate, endDate, limit)
+            }
+        }
+
+        val customRepository = TransactionRepository(
+            transactionDao = slowTransactionDao,
+            accountDao = appDb.accountDao,
+            categoryDao = appDb.categoryDao,
+            budgetDao = appDb.budgetDao,
+            notificationDao = appDb.notificationDao
+        )
+
+        val viewModel = FinanceViewModel(
+            repository = customRepository,
+            scopeOverride = CoroutineScope(Dispatchers.Default),
+            clock = fixedClock
+        )
+
+        // 3. Luncurkan Request 1 (September) yang tertahan
+        val req1Id = viewModel.fetchAiInsight("2026-09-01", "2026-09-30")
+
+        // 4. Luncurkan Request 2 (Oktober) segera setelahnya tanpa menunggu Request 1 selesai
+        val req2Id = viewModel.fetchAiInsight("2026-10-01", "2026-10-31")
+
+        // 5. Verifikasi bahwa Request 2 selesai lebih dahulu dan terkonfirmasi via completedInsightRequestId
+        val req2CompletedState = viewModel.uiState.first {
+            it.completedInsightRequestId == req2Id && !it.isAiInsightLoading
+        }
+        assertEquals(req2Id, req2CompletedState.completedInsightRequestId)
+        val octInsightText = req2CompletedState.aiInsightText
+        assertNotNull(octInsightText)
+        assertTrue(
+            "Teks insight wajib merefleksikan transaksi Oktober",
+            octInsightText!!.contains("Hiburan") || octInsightText.contains("Liburan") || octInsightText.contains("Oktober") || octInsightText.contains("Rp")
+        )
+
+        // 6. Lanjutkan Request 1 yang tertunda agar menyelesaikan coroutine-nya
+        pauseRequest1.complete(Unit)
+
+        // Berikan waktu sejenak agar coroutine Request 1 menyelesaikan eksekusi dan memvalidasi activeRequestId
+        kotlinx.coroutines.delay(150)
+
+        // 7. Buktikan bahwa hasil Request 1 yang stale dibuang dan TIDAK menimpa hasil Request 2
+        val finalState = viewModel.uiState.value
+        assertEquals("RequestId akhir wajib tetap merupakan Request 2", req2Id, finalState.completedInsightRequestId)
+        assertEquals("Teks insight akhir tidak boleh tertimpa oleh Request 1", octInsightText, finalState.aiInsightText)
+        assertFalse("State loading wajib tetap false", finalState.isAiInsightLoading)
     }
 }

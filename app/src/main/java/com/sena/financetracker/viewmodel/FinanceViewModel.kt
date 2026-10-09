@@ -34,6 +34,7 @@ import java.time.Clock
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 /**
  * ViewModel utama untuk mengelola state dan alur bisnis Finance Tracker Mobile.
@@ -96,6 +97,10 @@ class FinanceViewModel(
     private val _aiInsightText = MutableStateFlow<String?>(null)
     private val _isAiInsightLoading = MutableStateFlow(false)
     private val _aiInsightError = MutableStateFlow<String?>(null)
+    private val _completedInsightRequestId = MutableStateFlow<String?>(null)
+
+    @Volatile
+    private var activeInsightRequestId: String? = null
 
     private val _pageSize = MutableStateFlow(50)
     private val _visibleTransactionCount = MutableStateFlow(50)
@@ -121,6 +126,13 @@ class FinanceViewModel(
         observeData()
     }
 
+    private data class AiInsightParams(
+        val text: String?,
+        val loading: Boolean,
+        val error: String?,
+        val completedRequestId: String?
+    )
+
     private data class FilterParams(
         val query: String,
         val category: String?,
@@ -129,6 +141,7 @@ class FinanceViewModel(
         val aiInsightText: String?,
         val isAiInsightLoading: Boolean,
         val aiInsightError: String?,
+        val completedInsightRequestId: String?,
         val pageSize: Int,
         val visibleTransactionCount: Int,
         val hasApiKey: Boolean
@@ -185,20 +198,29 @@ class FinanceViewModel(
         }
 
         val pagingFlow = combine(_pageSize, _visibleTransactionCount, _hasApiKey) { size, count, hasKey -> Triple(size, count, hasKey) }
+        val aiInsightFlow = combine(
+            _aiInsightText,
+            _isAiInsightLoading,
+            _aiInsightError,
+            _completedInsightRequestId
+        ) { text, loading, err, reqId ->
+            AiInsightParams(text, loading, err, reqId)
+        }
         val filterParamsFlow = combine(
             combine(debouncedSearchQuery, _selectedCategoryFilter, _selectedDateFilter) { q, c, d -> Triple(q, c, d) },
             _selectedFilterTab,
-            combine(_aiInsightText, _isAiInsightLoading, _aiInsightError) { text, loading, err -> Triple(text, loading, err) },
+            aiInsightFlow,
             pagingFlow
-        ) { (query, category, dateFilter), typeFilter, (aiText, aiLoading, aiErr), (pageSize, visibleCount, hasKey) ->
+        ) { (query, category, dateFilter), typeFilter, aiState, (pageSize, visibleCount, hasKey) ->
             FilterParams(
                 query = query,
                 category = category,
                 dateFilter = dateFilter,
                 typeFilter = typeFilter,
-                aiInsightText = aiText,
-                isAiInsightLoading = aiLoading,
-                aiInsightError = aiErr,
+                aiInsightText = aiState.text,
+                isAiInsightLoading = aiState.loading,
+                aiInsightError = aiState.error,
+                completedInsightRequestId = aiState.completedRequestId,
                 pageSize = pageSize,
                 visibleTransactionCount = visibleCount,
                 hasApiKey = hasKey
@@ -305,6 +327,7 @@ class FinanceViewModel(
                     aiInsightText = filter.aiInsightText,
                     isAiInsightLoading = filter.isAiInsightLoading,
                     aiInsightError = filter.aiInsightError,
+                    completedInsightRequestId = filter.completedInsightRequestId,
                     hasApiKey = filter.hasApiKey,
                     isHapticEnabled = haptic,
                     pageSize = filter.pageSize,
@@ -662,13 +685,22 @@ class FinanceViewModel(
      * Jika periode mencakup multi-bulan atau semua waktu, daftar anggaran dikirim kosong dan evaluasi
      * batas anggaran bulanan ditandai tidak berlaku untuk mencegah klaim overbudget/safe yang keliru.
      *
+     * Menerapkan mekanisme correlation request ID dan stale response discarding:
+     * setiap pemanggilan menghasilkan identifier unik [requestId] dan mencatatnya sebagai permintaan aktif.
+     * Respon yang selesai ketika permintaan sudah tidak aktif (stale request yang disusul oleh request baru)
+     * dibuang secara otomatis dan tidak menimpa [uiState].
+     *
      * @param startDate Tanggal awal rentang (format "yyyy-MM-dd", opsional).
      * @param endDate Tanggal akhir rentang (format "yyyy-MM-dd", opsional).
+     * @return Identifier korelasi permintaan unik ([requestId]).
      */
-    fun fetchAiInsight(startDate: String? = null, endDate: String? = null) {
+    fun fetchAiInsight(startDate: String? = null, endDate: String? = null): String {
+        val requestId = UUID.randomUUID().toString()
+        activeInsightRequestId = requestId
+        _isAiInsightLoading.value = true
+        _aiInsightError.value = null
+
         activeScope.launch(coroutineExceptionHandler) {
-            _isAiInsightLoading.value = true
-            _aiInsightError.value = null
             try {
                 val (resolvedStart, resolvedEnd) = if (!startDate.isNullOrBlank() && !endDate.isNullOrBlank()) {
                     Pair(startDate, endDate)
@@ -732,13 +764,27 @@ class FinanceViewModel(
                     reportsAnalytics = reportsAnalytics,
                     isMultiMonth = isMultiMonth
                 )
+
+                if (activeInsightRequestId != requestId) {
+                    return@launch // Stale request, discard
+                }
+
                 _aiInsightText.value = insight
+                _completedInsightRequestId.value = requestId
             } catch (e: Exception) {
+                if (activeInsightRequestId != requestId) {
+                    return@launch // Stale request, discard
+                }
+
                 _aiInsightError.value = e.message ?: "Gagal mendapatkan analisis AI"
+                _completedInsightRequestId.value = requestId
             } finally {
-                _isAiInsightLoading.value = false
+                if (activeInsightRequestId == requestId) {
+                    _isAiInsightLoading.value = false
+                }
             }
         }
+        return requestId
     }
 
     /**

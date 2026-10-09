@@ -169,6 +169,10 @@ data class ReportsAnalyticsState(
  * @property selectedDateFilter Filter rentang waktu ("ALL", "TODAY", "THIS_MONTH").
  * @property selectedFilterTab Filter tab jenis transaksi ("ALL", "EXPENSE", "INCOME").
  * @property reportsAnalytics State kalkulasi laporan analitik & grafik arus kas.
+ * @property aiInsightText Teks wawasan analisis keuangan pintar dari Pak Hemat / model AI.
+ * @property isAiInsightLoading Indikator pemuatan atau pemrosesan asinkron AI Insight.
+ * @property aiInsightError Pesan galat operasional jika analisis AI Insight gagal.
+ * @property completedInsightRequestId Identifier unik korelasi permintaan AI Insight yang telah selesai diproses.
  */
 data class FinanceUiState(
     val transactions: List<TransactionEntity> = emptyList(),
@@ -191,6 +195,7 @@ data class FinanceUiState(
     val aiInsightText: String? = null,
     val isAiInsightLoading: Boolean = false,
     val aiInsightError: String? = null,
+    val completedInsightRequestId: String? = null,
     val hasApiKey: Boolean = false,
     val isHapticEnabled: Boolean = true,
     val pageSize: Int = 50,
@@ -450,6 +455,7 @@ fun calculateFinanceTotals(
     aiInsightText: String? = null,
     isAiInsightLoading: Boolean = false,
     aiInsightError: String? = null,
+    completedInsightRequestId: String? = null,
     hasApiKey: Boolean = false,
     isHapticEnabled: Boolean = true,
     pageSize: Int = 50,
@@ -510,6 +516,7 @@ fun calculateFinanceTotals(
         aiInsightText = aiInsightText,
         isAiInsightLoading = isAiInsightLoading,
         aiInsightError = aiInsightError,
+        completedInsightRequestId = completedInsightRequestId,
         hasApiKey = hasApiKey,
         isHapticEnabled = isHapticEnabled,
         pageSize = pageSize,

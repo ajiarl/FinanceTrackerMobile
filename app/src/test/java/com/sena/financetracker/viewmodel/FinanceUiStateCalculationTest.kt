@@ -72,12 +72,14 @@ class FinanceUiStateCalculationTest {
             transactions = emptyList(),
             aiInsightText = "Hemat 50% bos!",
             isAiInsightLoading = false,
-            aiInsightError = null
+            aiInsightError = null,
+            completedInsightRequestId = "req-test-123"
         )
 
         assertEquals("Hemat 50% bos!", state.aiInsightText)
         assertEquals(false, state.isAiInsightLoading)
         assertEquals(null, state.aiInsightError)
+        assertEquals("req-test-123", state.completedInsightRequestId)
         assertEquals(true, state.isHapticEnabled)
     }
 
