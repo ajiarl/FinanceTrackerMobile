@@ -10,11 +10,16 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Date
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -1014,7 +1019,7 @@ class AppDatabaseRollbackRobolectricTest {
     }
 
     @Test
-    fun testAiInsightStaleRequestDiscardedOnConcurrentRequests() = runBlocking {
+    fun testAiInsightStaleRequestDiscardedOnConcurrentRequests() = runTest(timeout = kotlin.time.Duration.parse("5s")) {
         // 1. Bersihkan data lama agar state terisolasi
         val existingTxs = repository.getAllTransactions().first()
         for (tx in existingTxs) {
@@ -1076,8 +1081,11 @@ class AppDatabaseRollbackRobolectricTest {
             )
         )
 
-        // 2. Gunakan CompletableDeferred untuk menahan Request 1 (September) secara terkontrol
-        val pauseRequest1 = kotlinx.coroutines.CompletableDeferred<Unit>()
+        // 2. Gunakan CompletableDeferred dan TestDispatcher untuk mengontrol eksekusi secara deterministik
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val req1Started = CompletableDeferred<Unit>()
+        val pauseRequest1 = CompletableDeferred<Unit>()
+
         val slowTransactionDao = object : TransactionDao by appDb.transactionDao {
             override suspend fun getTransactionsForPeriod(
                 startDate: String?,
@@ -1085,6 +1093,7 @@ class AppDatabaseRollbackRobolectricTest {
                 limit: Int
             ): List<TransactionEntity> {
                 if (startDate?.startsWith("2026-09") == true) {
+                    req1Started.complete(Unit)
                     pauseRequest1.await()
                 }
                 return appDb.transactionDao.getTransactionsForPeriod(startDate, endDate, limit)
@@ -1102,14 +1111,29 @@ class AppDatabaseRollbackRobolectricTest {
         val viewModel = FinanceViewModel(
             repository = customRepository,
             scopeOverride = CoroutineScope(Dispatchers.Default),
-            clock = fixedClock
+            clock = fixedClock,
+            ioDispatcher = testDispatcher
         )
+
+        val req1CompletedDeferred = CompletableDeferred<Unit>()
+        var targetReq1Id: String? = null
+        viewModel.onAiInsightCompletedForTest = { completedId ->
+            if (completedId == targetReq1Id) {
+                req1CompletedDeferred.complete(Unit)
+            }
+        }
 
         // 3. Luncurkan Request 1 (September) yang tertahan
         val req1Id = viewModel.fetchAiInsight("2026-09-01", "2026-09-30")
+        targetReq1Id = req1Id
 
-        // 4. Luncurkan Request 2 (Oktober) segera setelahnya tanpa menunggu Request 1 selesai
+        // Majukan test scheduler agar Request 1 aktif dan mencapai gerbang penahanan
+        testScheduler.advanceUntilIdle()
+        req1Started.await()
+
+        // 4. Luncurkan Request 2 (Oktober) dan jalankan hingga tuntas
         val req2Id = viewModel.fetchAiInsight("2026-10-01", "2026-10-31")
+        testScheduler.advanceUntilIdle()
 
         // 5. Verifikasi bahwa Request 2 selesai lebih dahulu dan terkonfirmasi via completedInsightRequestId
         val req2CompletedState = viewModel.uiState.first {
@@ -1123,11 +1147,10 @@ class AppDatabaseRollbackRobolectricTest {
             octInsightText!!.contains("Hiburan") || octInsightText.contains("Liburan") || octInsightText.contains("Oktober") || octInsightText.contains("Rp")
         )
 
-        // 6. Lanjutkan Request 1 yang tertunda agar menyelesaikan coroutine-nya
+        // 6. Lepaskan Request 1 dan tunggu seluruh coroutine Request 1 selesai secara tuntas
         pauseRequest1.complete(Unit)
-
-        // Berikan waktu sejenak agar coroutine Request 1 menyelesaikan eksekusi dan memvalidasi activeRequestId
-        kotlinx.coroutines.delay(150)
+        testScheduler.advanceUntilIdle()
+        req1CompletedDeferred.await()
 
         // 7. Buktikan bahwa hasil Request 1 yang stale dibuang dan TIDAK menimpa hasil Request 2
         val finalState = viewModel.uiState.value

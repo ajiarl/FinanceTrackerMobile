@@ -13,6 +13,7 @@ import com.sena.financetracker.data.PagedTransactionsResult
 import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.repository.TransactionRepository
 import com.sena.financetracker.util.CsvImporter
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,15 +45,28 @@ import java.util.UUID
  * menggunakan operator [combine] Kotlin Coroutines Flow untuk memancarkan [FinanceUiState] yang konsisten.
  *
  * Menjamin error handling yang aman pada setiap operasi coroutine di [viewModelScope] tanpa membuat aplikasi crash.
+ *
+ * @param repository Repositori transaksi dan data finansial Room.
+ * @param scopeOverride Coroutine scope pengganti untuk pengujian unit (opsional).
+ * @param context Konteks Android untuk enkripsi dan SharedPreferences (opsional).
+ * @param clock Jam sistem deterministik untuk pengujian berbasis waktu (default: [Clock.systemDefaultZone]).
+ * @param ioDispatcher Coroutine dispatcher untuk pekerjaan I/O dan analisis AI di latar belakang (default: [Dispatchers.IO]).
  */
 class FinanceViewModel(
     private val repository: TransactionRepository,
     private val scopeOverride: CoroutineScope? = null,
     private val context: Context? = null,
-    private val clock: Clock = Clock.systemDefaultZone()
+    private val clock: Clock = Clock.systemDefaultZone(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
 
     private val activeScope: CoroutineScope = scopeOverride ?: viewModelScope
+
+    /**
+     * Callback / signal pengujian untuk memverifikasi penyelesaian coroutine [fetchAiInsight].
+     * Dipanggil pada blok finally setelah seluruh alur validasi requestId selesai dieksekusi.
+     */
+    internal var onAiInsightCompletedForTest: ((requestId: String) -> Unit)? = null
 
     private val _uiState = MutableStateFlow(FinanceUiState(isLoading = true))
 
@@ -700,7 +714,7 @@ class FinanceViewModel(
         _isAiInsightLoading.value = true
         _aiInsightError.value = null
 
-        activeScope.launch(coroutineExceptionHandler) {
+        activeScope.launch(ioDispatcher + coroutineExceptionHandler) {
             try {
                 val (resolvedStart, resolvedEnd) = if (!startDate.isNullOrBlank() && !endDate.isNullOrBlank()) {
                     Pair(startDate, endDate)
@@ -762,7 +776,8 @@ class FinanceViewModel(
                     apiKey = currentApiKey,
                     periodSummary = periodSummary,
                     reportsAnalytics = reportsAnalytics,
-                    isMultiMonth = isMultiMonth
+                    isMultiMonth = isMultiMonth,
+                    ioDispatcher = ioDispatcher
                 )
 
                 if (activeInsightRequestId != requestId) {
@@ -782,6 +797,7 @@ class FinanceViewModel(
                 if (activeInsightRequestId == requestId) {
                     _isAiInsightLoading.value = false
                 }
+                onAiInsightCompletedForTest?.invoke(requestId)
             }
         }
         return requestId
@@ -1029,16 +1045,27 @@ class FinanceViewModel(
 
     /**
      * Factory provider untuk inisialisasi [FinanceViewModel] dengan dependency injection manual.
+     *
+     * @param repository Repositori transaksi dan data Room.
+     * @param context Konteks Android (opsional).
+     * @param clock Jam sistem deterministik (opsional).
+     * @param ioDispatcher Coroutine dispatcher untuk operasi I/O dan AI insight (default: [Dispatchers.IO]).
      */
     class Factory(
         private val repository: TransactionRepository,
         private val context: Context? = null,
-        private val clock: Clock = Clock.systemDefaultZone()
+        private val clock: Clock = Clock.systemDefaultZone(),
+        private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(FinanceViewModel::class.java)) {
-                return FinanceViewModel(repository, context = context, clock = clock) as T
+                return FinanceViewModel(
+                    repository = repository,
+                    context = context,
+                    clock = clock,
+                    ioDispatcher = ioDispatcher
+                ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }

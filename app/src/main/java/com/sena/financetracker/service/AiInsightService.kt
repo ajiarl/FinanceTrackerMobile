@@ -4,6 +4,7 @@ import com.sena.financetracker.BuildConfig
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.TransactionEntity
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -40,8 +41,9 @@ object AiInsightService {
         apiKey: String = com.sena.financetracker.util.SecurityConfig.getGroqApiKey(),
         periodSummary: com.sena.financetracker.data.FinanceSummary? = null,
         reportsAnalytics: com.sena.financetracker.viewmodel.ReportsAnalyticsState? = null,
-        isMultiMonth: Boolean = false
-    ): String = withContext(Dispatchers.IO) {
+        isMultiMonth: Boolean = false,
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    ): String = withContext(ioDispatcher) {
         val totalNetWorth = accounts.sumOf { it.balance }
         val effectiveMultiMonth = isMultiMonth ||
             periodTitle.contains("3 Bulan", ignoreCase = true) ||
