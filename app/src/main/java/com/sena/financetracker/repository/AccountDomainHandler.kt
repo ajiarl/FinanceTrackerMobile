@@ -71,25 +71,29 @@ class AccountDomainHandler(
 
         val safeAmount = roundCurrency(amount)
 
-        val currentFromAccount = accountDao.getAccountById(fromAccount.id) ?: fromAccount
-        require(currentFromAccount.balance >= safeAmount) {
-            "Saldo rekening asal (${currentFromAccount.name}) tidak mencukupi untuk transfer"
+        val sender = accountDao.getAccountById(fromAccount.id)
+            ?: throw IllegalArgumentException("Rekening pengirim tidak ditemukan atau sudah dihapus")
+        val receiver = accountDao.getAccountById(toAccount.id)
+            ?: throw IllegalArgumentException("Rekening penerima tidak ditemukan atau sudah dihapus")
+
+        require(sender.balance >= safeAmount) {
+            "Saldo rekening asal (${sender.name}) tidak mencukupi untuk transfer"
         }
 
-        accountDao.adjustBalance(fromAccount.id, -safeAmount)
-        accountDao.adjustBalance(toAccount.id, safeAmount)
+        accountDao.adjustBalance(sender.id, -safeAmount)
+        accountDao.adjustBalance(receiver.id, safeAmount)
 
         val transferTx = TransactionEntity(
-            title = "Transfer ke ${toAccount.name}",
+            title = "Transfer ke ${receiver.name}",
             amount = safeAmount,
             type = "TRANSFER",
             category = "Transfer",
             date = date,
-            accountId = fromAccount.id,
-            accountName = fromAccount.name,
-            notes = if (notes.isNotBlank()) notes else "Transfer dari ${fromAccount.name} ke ${toAccount.name}",
-            toAccountId = toAccount.id,
-            toAccountName = toAccount.name
+            accountId = sender.id,
+            accountName = sender.name,
+            notes = if (notes.isNotBlank()) notes else "Transfer dari ${sender.name} ke ${receiver.name}",
+            toAccountId = receiver.id,
+            toAccountName = receiver.name
         )
         transactionDao.insertTransaction(transferTx)
     }

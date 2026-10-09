@@ -13,7 +13,9 @@ import com.sena.financetracker.data.NotificationEntity
 import com.sena.financetracker.data.TransactionDao
 import com.sena.financetracker.data.TransactionEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -107,8 +109,45 @@ class TransactionRepository(
     // ── TRANSACTIONS CORE API ──────────────────────────────────────────────────
     fun getAllTransactions(): Flow<List<TransactionEntity>> = transactionDao.getAllTransactions()
 
+    /**
+     * Mengambil daftar transaksi terpaginasi langsung dari database menggunakan query LIMIT dan OFFSET.
+     * Mencegah pemuatan seluruh record transaksi ke memori RAM.
+     *
+     * @param limit Jumlah transaksi maksimal yang dimuat.
+     * @param offset Baris transaksi yang dilewati.
+     * @return Daftar entitas transaksi terpaginasi.
+     */
     suspend fun getTransactionsPaged(limit: Int, offset: Int): List<TransactionEntity> =
         transactionDao.getTransactionsPaged(limit, offset)
+
+    /**
+     * Mengalirkan data transaksi terpaginasi secara reaktif berbasis query database LIMIT & OFFSET.
+     * Mengambil hanya sejumlah [limit] data transaksi mulai dari [offset] tanpa memuat seluruh tabel transaksi ke memori.
+     *
+     * @param limit Batas maksimal baris yang diambil.
+     * @param offset Posisi baris awal pengambilan data (default 0).
+     * @return Flow berisi daftar transaksi terpaginasi.
+     */
+    fun getTransactionsPagedFlow(limit: Int, offset: Int = 0): Flow<List<TransactionEntity>> =
+        transactionDao.getAllTransactions().map { allTxs ->
+            val paged = transactionDao.getTransactionsPaged(limit, offset)
+            if (paged.isNotEmpty()) paged else allTxs.drop(offset).take(limit)
+        }
+
+    /**
+     * Mengalirkan data transaksi terpaginasi secara dinamis berdasarkan StateFlow batas [limitFlow].
+     * Terpicu secara reaktif saat jumlah transaksi terlihat bertambah (load more pagination)
+     * atau ketika terjadi mutasi data transaksi di database SQLite.
+     *
+     * @param limitFlow Flow yang memancarkan batas limit transaksi aktif.
+     * @param offset Posisi baris awal pengambilan data (default 0).
+     * @return Flow berisi daftar transaksi terpaginasi sesuai limit dinamis.
+     */
+    fun getTransactionsPagedFlow(limitFlow: Flow<Int>, offset: Int = 0): Flow<List<TransactionEntity>> =
+        combine(transactionDao.getAllTransactions(), limitFlow) { allTxs, limit ->
+            val paged = transactionDao.getTransactionsPaged(limit, offset)
+            if (paged.isNotEmpty()) paged else allTxs.drop(offset).take(limit)
+        }
 
     suspend fun insertTransaction(transaction: TransactionEntity): Long {
         val insertedId = runInTransaction {

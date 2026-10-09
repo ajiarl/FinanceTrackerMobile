@@ -186,8 +186,13 @@ class FinanceViewModel(
             )
         }
 
+        val pagedTransactionsFlow = repository.getTransactionsPagedFlow(
+            limitFlow = _visibleTransactionCount,
+            offset = 0
+        )
+
         val coreDataFlow = combine(
-            repository.getAllTransactions(),
+            pagedTransactionsFlow,
             repository.getAllAccounts(),
             repository.getAllCategories(),
             repository.getBudgetProgress()

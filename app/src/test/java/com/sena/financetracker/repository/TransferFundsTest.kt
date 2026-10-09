@@ -129,6 +129,62 @@ class TransferFundsTest {
     }
 
     @Test
+    fun `transferFunds throws exception when sender account not found in database`() {
+        val ghostSender = AccountEntity(id = 999L, name = "Akun Fiktif", type = "bank", balance = 500000.0)
+        val ex = assertThrows(IllegalArgumentException::class.java) {
+            runBlocking {
+                repository.transferFunds(
+                    fromAccount = ghostSender,
+                    toAccount = accountGopay,
+                    amount = 50000.0,
+                    notes = "Sender ghost",
+                    date = "2026-10-07"
+                )
+            }
+        }
+        assertTrue(ex.message!!.contains("Rekening pengirim tidak ditemukan atau sudah dihapus"))
+    }
+
+    @Test
+    fun `transferFunds throws exception when receiver account not found in database`() {
+        val ghostReceiver = AccountEntity(id = 888L, name = "Penerima Fiktif", type = "bank", balance = 0.0)
+        val ex = assertThrows(IllegalArgumentException::class.java) {
+            runBlocking {
+                repository.transferFunds(
+                    fromAccount = accountBca,
+                    toAccount = ghostReceiver,
+                    amount = 50000.0,
+                    notes = "Receiver ghost",
+                    date = "2026-10-07"
+                )
+            }
+        }
+        assertTrue(ex.message!!.contains("Rekening penerima tidak ditemukan atau sudah dihapus"))
+    }
+
+    @Test
+    fun `transferFunds uses fresh account names from database for transaction metadata`() = runBlocking {
+        // Update nama akun di database
+        fakeAccountDao.setAccount(accountBca.copy(name = "BCA Prioritas"))
+        fakeAccountDao.setAccount(accountGopay.copy(name = "GoPay Tabungan"))
+
+        // Panggil transfer menggunakan objek lama yang namanya belum diperbarui
+        repository.transferFunds(
+            fromAccount = accountBca, // masih "BCA" di objek memori lama
+            toAccount = accountGopay, // masih "GoPay" di objek memori lama
+            amount = 100000.0,
+            notes = "",
+            date = "2026-10-07"
+        )
+
+        val tx = fakeTransactionDao.transactions.first()
+        assertEquals("Transfer ke GoPay Tabungan", tx.title)
+        assertEquals("BCA Prioritas", tx.accountName)
+        assertEquals("GoPay Tabungan", tx.toAccountName)
+        assertEquals("Transfer dari BCA Prioritas ke GoPay Tabungan", tx.notes)
+    }
+
+    @Test
     fun `transferFunds succeeds when amount exactly equals fromAccount balance`() = runBlocking {
         repository.transferFunds(
             fromAccount = accountBca,
@@ -321,6 +377,11 @@ class TransferFundsTest {
     private class FakeAccountDao(initialAccounts: List<AccountEntity>) : AccountDao {
         private val accountsMap = initialAccounts.associateBy { it.id }.toMutableMap()
         private val _flow = MutableStateFlow(accountsMap.values.toList())
+
+        fun setAccount(account: AccountEntity) {
+            accountsMap[account.id] = account
+            _flow.value = accountsMap.values.toList()
+        }
 
         override fun getAllAccounts(): Flow<List<AccountEntity>> = _flow
 

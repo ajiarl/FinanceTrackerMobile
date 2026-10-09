@@ -42,6 +42,7 @@ android {
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -66,5 +67,6 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.security.crypto)
     testImplementation(libs.junit)
+    testImplementation("org.robolectric:robolectric:4.16.1")
     debugImplementation(libs.androidx.ui.tooling)
 }
