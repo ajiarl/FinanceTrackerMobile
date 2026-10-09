@@ -7,7 +7,9 @@ import androidx.lifecycle.viewModelScope
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.CategoryEntity
+import com.sena.financetracker.data.FinanceSummary
 import com.sena.financetracker.data.NotificationEntity
+import com.sena.financetracker.data.PagedTransactionsResult
 import com.sena.financetracker.data.TransactionEntity
 import com.sena.financetracker.repository.TransactionRepository
 import com.sena.financetracker.util.CsvImporter
@@ -15,6 +17,7 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +26,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -41,7 +45,7 @@ import java.util.Locale
  */
 class FinanceViewModel(
     private val repository: TransactionRepository,
-    scopeOverride: CoroutineScope? = null,
+    private val scopeOverride: CoroutineScope? = null,
     private val context: Context? = null
 ) : ViewModel() {
 
@@ -129,10 +133,15 @@ class FinanceViewModel(
     )
 
     private data class CoreData(
-        val transactions: List<TransactionEntity>,
         val accounts: List<AccountEntity>,
         val categories: List<CategoryEntity>,
         val budgets: List<BudgetProgressItem>
+    )
+
+    private data class PagedAndSummary(
+        val summary: FinanceSummary,
+        val pagedResult: PagedTransactionsResult,
+        val filter: FilterParams
     )
 
     private data class NotifData(
@@ -140,28 +149,37 @@ class FinanceViewModel(
         val unreadNotificationCount: Int
     )
 
-    private data class DataBundle(
-        val transactions: List<TransactionEntity>,
-        val accounts: List<AccountEntity>,
-        val categories: List<CategoryEntity>,
-        val budgets: List<BudgetProgressItem>,
-        val notifications: List<NotificationEntity>,
-        val unreadNotificationCount: Int,
-        val isHapticEnabled: Boolean
-    )
+    private fun resolveDateRange(dateFilter: String): Pair<String?, String?> {
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        return when (dateFilter.uppercase(Locale.ROOT)) {
+            "TODAY" -> Pair(today, today)
+            "THIS_MONTH" -> {
+                val cal = Calendar.getInstance()
+                val year = cal.get(Calendar.YEAR)
+                val month = String.format(Locale.ROOT, "%02d", cal.get(Calendar.MONTH) + 1)
+                val maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+                Pair("$year-$month-01", "$year-$month-$maxDay")
+            }
+            else -> Pair(null, null)
+        }
+    }
 
     /**
      * Mengobservasi dan menggabungkan aliran basis data Room/SQLite bersama parameter filter.
      *
      * Alur:
-     * 1. Menggabungkan 5 StateFlow filter menjadi aliran [FilterParams].
-     * 2. Menggabungkan 4 Flow database dari repository menjadi [DataBundle].
-     * 3. Mengkalkulasi total keuangan riil, menyaring [FinanceUiState.filteredTransactions], serta kalkulasi [ReportsAnalyticsState].
+     * 1. Menggabungkan StateFlow filter menjadi aliran [FilterParams].
+     * 2. Menjalankan query agregasi SQL dan transaksi terpaginasi langsung di basis data SQLite (zero RAM overhead).
+     * 3. Menggabungkan hasil agregasi dan paginasi bersama data akun, kategori, dan notifikasi ke [FinanceUiState].
      */
     @OptIn(FlowPreview::class)
     private fun observeData() {
-        val debouncedSearchQuery = _searchQuery.debounce { query ->
-            if (query.isEmpty()) 0L else 300L
+        val debouncedSearchQuery = if (scopeOverride != null) {
+            _searchQuery
+        } else {
+            _searchQuery.debounce { query ->
+                if (query.isEmpty()) 0L else 300L
+            }
         }
 
         val pagingFlow = combine(_pageSize, _visibleTransactionCount, _hasApiKey) { size, count, hasKey -> Triple(size, count, hasKey) }
@@ -186,58 +204,130 @@ class FinanceViewModel(
             )
         }
 
-        val masterTransactionsFlow = repository.getAllTransactions()
+        val pagedTransactionsAndSummaryFlow: Flow<PagedAndSummary> = combine(
+            filterParamsFlow,
+            repository.getTransactionUpdateTrigger()
+        ) { filter: FilterParams, _: Long ->
+            val (startDate, endDate) = resolveDateRange(filter.dateFilter)
+            val cleanQuery = filter.query.trim().ifEmpty { null }
+            val cleanCategory = if (filter.category.isNullOrBlank() || filter.category.trim().equals("ALL", ignoreCase = true)) null else filter.category.trim()
+            val cleanType = when (filter.typeFilter.trim().uppercase(Locale.ROOT)) {
+                "EXPENSE" -> "EXPENSE"
+                "INCOME" -> "INCOME"
+                else -> null
+            }
 
-        val coreDataFlow = combine(
-            masterTransactionsFlow,
+            val summary = repository.getFinanceSummary(
+                query = cleanQuery,
+                category = cleanCategory,
+                startDate = startDate,
+                endDate = endDate
+            )
+
+            val pagedResult = repository.getFilteredTransactionsPaged(
+                query = cleanQuery,
+                type = cleanType,
+                category = cleanCategory,
+                startDate = startDate,
+                endDate = endDate,
+                limit = filter.visibleTransactionCount,
+                offset = 0
+            )
+
+            PagedAndSummary(summary, pagedResult, filter)
+        }
+
+        val coreDataFlow: Flow<CoreData> = combine(
             repository.getAllAccounts(),
             repository.getAllCategories(),
             repository.getBudgetProgress()
-        ) { txs, accs, cats, budgets ->
-            CoreData(txs, accs, cats, budgets)
+        ) { accs, cats, budgets ->
+            CoreData(accs, cats, budgets)
         }
 
-        val notifDataFlow = combine(
+        val notifDataFlow: Flow<NotifData> = combine(
             repository.getAllNotifications(),
             repository.getUnreadNotificationCount()
         ) { notifs, unreadCount ->
             NotifData(notifs, unreadCount)
         }
 
-        val dataFlow = combine(coreDataFlow, notifDataFlow, repository.isHapticEnabled()) { core, notif, haptic ->
-            DataBundle(
-                transactions = core.transactions,
-                accounts = core.accounts,
-                categories = core.categories,
-                budgets = core.budgets,
-                notifications = notif.notifications,
-                unreadNotificationCount = notif.unreadNotificationCount,
-                isHapticEnabled = haptic
-            )
-        }
-
         activeScope.launch(coroutineExceptionHandler) {
-            combine(dataFlow, filterParamsFlow) { data, filter ->
-                calculateFinanceTotals(
-                    transactions = data.transactions,
-                    accounts = data.accounts,
-                    categories = data.categories,
-                    budgets = data.budgets,
-                    notifications = data.notifications,
-                    unreadNotificationCount = data.unreadNotificationCount,
+            combine(
+                pagedTransactionsAndSummaryFlow,
+                coreDataFlow,
+                notifDataFlow,
+                repository.isHapticEnabled()
+            ) { pagedSummary: PagedAndSummary, core: CoreData, notif: NotifData, haptic: Boolean ->
+                val summary = pagedSummary.summary
+                val pagedResult = pagedSummary.pagedResult
+                val filter = pagedSummary.filter
+                val accounts = core.accounts
+                val categories = core.categories
+                val budgets = core.budgets
+
+                val totalIncome = summary.totalIncome
+                val totalExpense = summary.totalExpense
+                val totalBalance = if (accounts.isNotEmpty()) {
+                    accounts.sumOf { it.balance }
+                } else {
+                    totalIncome - totalExpense
+                }
+
+                val netSavings = totalIncome - totalExpense
+                val savingRate = if (totalIncome > 0) {
+                    ((netSavings / totalIncome) * 100).toInt().coerceIn(-100, 100)
+                } else if (totalExpense > 0) {
+                    -100
+                } else {
+                    0
+                }
+                val savingStatus = when {
+                    totalIncome == 0.0 && totalExpense == 0.0 -> "NORMAL"
+                    savingRate >= 30 -> "HEMAT"
+                    savingRate >= 10 -> "NORMAL"
+                    else -> "BOROS"
+                }
+
+                val reportsAnalytics = calculateReportsAnalytics(
+                    transactions = pagedResult.transactions,
+                    categories = categories,
+                    preset = filter.reportsPreset
+                ).copy(
+                    totalIncome = totalIncome,
+                    totalExpense = totalExpense,
+                    netSavings = netSavings,
+                    savingRate = savingRate,
+                    savingStatus = savingStatus
+                )
+
+                FinanceUiState(
+                    transactions = pagedResult.transactions,
+                    filteredTransactions = pagedResult.transactions,
+                    accounts = accounts,
+                    categories = categories,
+                    budgets = budgets,
+                    notifications = notif.notifications,
+                    unreadNotificationCount = notif.unreadNotificationCount,
+                    totalBalance = totalBalance,
+                    totalIncome = totalIncome,
+                    totalExpense = totalExpense,
+                    isLoading = false,
+                    errorMessage = null,
                     searchQuery = filter.query,
                     selectedCategoryFilter = filter.category,
                     selectedDateFilter = filter.dateFilter,
                     selectedFilterTab = filter.typeFilter,
-                    reportsPreset = filter.reportsPreset,
+                    reportsAnalytics = reportsAnalytics,
                     aiInsightText = filter.aiInsightText,
                     isAiInsightLoading = filter.isAiInsightLoading,
                     aiInsightError = filter.aiInsightError,
                     hasApiKey = filter.hasApiKey,
-                    isHapticEnabled = data.isHapticEnabled,
+                    isHapticEnabled = haptic,
                     pageSize = filter.pageSize,
-                    visibleTransactionCount = filter.visibleTransactionCount
-                ).copy(isLoading = false)
+                    visibleTransactionCount = filter.visibleTransactionCount,
+                    hasMoreTransactions = pagedResult.hasMore
+                )
             }
                 .flowOn(Dispatchers.Default)
                 .collect { newState ->
@@ -575,7 +665,7 @@ class FinanceViewModel(
             _isAiInsightLoading.value = true
             _aiInsightError.value = null
             try {
-                val allTx = repository.getAllTransactions().first()
+                val allTx = repository.getTransactionsPaged(limit = 100, offset = 0)
                 val allAccounts = repository.getAllAccounts().first()
                 val allBudgets = repository.getBudgetProgress().first()
                 val targetTransactions = if (!startDate.isNullOrBlank() && !endDate.isNullOrBlank()) {

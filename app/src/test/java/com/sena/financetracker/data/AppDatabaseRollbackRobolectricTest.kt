@@ -269,6 +269,7 @@ class AppDatabaseRollbackRobolectricTest {
         val dummyList = (1..120).map { i ->
             val isIncome = i % 2 != 0
             val title = when (i) {
+                10 -> "Pengeluaran Khusus #10"
                 80 -> "Pengeluaran Khusus #80"
                 110 -> "Pemasukan Spesial #110"
                 else -> if (isIncome) "Pemasukan #$i" else "Pengeluaran #$i"
@@ -307,13 +308,14 @@ class AppDatabaseRollbackRobolectricTest {
             scopeOverride = CoroutineScope(Dispatchers.Unconfined)
         )
 
-        val state1 = viewModel.uiState.filter { !it.isLoading && it.transactions.size == 120 }.first()
-
-        // Halaman pertama (limit 50): tepat 50 transaksi tampil di list, hasMoreTransactions = TRUE
+        // Uji Batas RAM / Memory: Halaman pertama (limit 50) hanya memuat tepat 50 baris ke RAM
+        val state1 = viewModel.uiState.filter { !it.isLoading && it.filteredTransactions.size == 50 }.first()
         assertEquals(50, state1.filteredTransactions.size)
+        assertTrue(state1.filteredTransactions.size <= 50)
+        assertTrue(state1.transactions.size <= 50)
         assertTrue(state1.hasMoreTransactions)
 
-        // Total ringkasan (income, expense, reports) tetap menghitung 120 transaksi secara utuh
+        // Uji Summary SQL: Total ringkasan (income, expense, reports) tetap menghitung 120 transaksi secara utuh via agregasi SQL
         val expectedIncome = 60 * 100000.0 // 6.000.000,0
         val expectedExpense = 60 * 50000.0 // 3.000.000,0
         assertEquals(expectedIncome, state1.totalIncome, 0.001)
@@ -321,14 +323,24 @@ class AppDatabaseRollbackRobolectricTest {
         assertEquals(expectedIncome, state1.reportsAnalytics.totalIncome, 0.001)
         assertEquals(expectedExpense, state1.reportsAnalytics.totalExpense, 0.001)
 
+        val directSummary = repository.getFinanceSummary()
+        assertEquals(expectedIncome, directSummary.totalIncome, 0.001)
+        assertEquals(expectedExpense, directSummary.totalExpense, 0.001)
+
+        // Uji Transaksi Luar Halaman: Transaksi #10 (posisi ke-111 secara kronologis) ditemukan via pencarian database murni
+        viewModel.setSearchQuery("Pengeluaran Khusus #10")
+        val searchState10 = viewModel.uiState.filter { it.searchQuery == "Pengeluaran Khusus #10" && it.filteredTransactions.isNotEmpty() }.first()
+        assertEquals(1, searchState10.filteredTransactions.size)
+        assertEquals("Pengeluaran Khusus #10", searchState10.filteredTransactions[0].title)
+
         // Pencarian menemukan transaksi ke-80 atau ke-110 meskipun awalnya hanya halaman pertama yang dimuat
         viewModel.setSearchQuery("Pengeluaran Khusus #80")
-        val searchState80 = viewModel.uiState.filter { it.searchQuery == "Pengeluaran Khusus #80" }.first()
+        val searchState80 = viewModel.uiState.filter { it.searchQuery == "Pengeluaran Khusus #80" && it.filteredTransactions.isNotEmpty() }.first()
         assertEquals(1, searchState80.filteredTransactions.size)
         assertEquals("Pengeluaran Khusus #80", searchState80.filteredTransactions[0].title)
 
         viewModel.setSearchQuery("Pemasukan Spesial #110")
-        val searchState110 = viewModel.uiState.filter { it.searchQuery == "Pemasukan Spesial #110" }.first()
+        val searchState110 = viewModel.uiState.filter { it.searchQuery == "Pemasukan Spesial #110" && it.filteredTransactions.isNotEmpty() }.first()
         assertEquals(1, searchState110.filteredTransactions.size)
         assertEquals("Pemasukan Spesial #110", searchState110.filteredTransactions[0].title)
 
@@ -337,13 +349,13 @@ class AppDatabaseRollbackRobolectricTest {
 
         // Klik "muat lebih banyak" (limit 100): menampilkan 100 transaksi, hasMoreTransactions = TRUE
         viewModel.loadMoreTransactions()
-        val state2 = viewModel.uiState.filter { it.visibleTransactionCount == 100 && it.searchQuery.isEmpty() }.first()
+        val state2 = viewModel.uiState.filter { it.visibleTransactionCount == 100 && it.searchQuery.isEmpty() && it.filteredTransactions.size == 100 }.first()
         assertEquals(100, state2.filteredTransactions.size)
         assertTrue(state2.hasMoreTransactions)
 
         // Halaman terakhir (limit 150): menampilkan 120 transaksi, hasMoreTransactions = FALSE
         viewModel.loadMoreTransactions()
-        val state3 = viewModel.uiState.filter { it.visibleTransactionCount == 150 && it.searchQuery.isEmpty() }.first()
+        val state3 = viewModel.uiState.filter { it.visibleTransactionCount == 150 && it.searchQuery.isEmpty() && it.filteredTransactions.size == 120 }.first()
         assertEquals(120, state3.filteredTransactions.size)
         assertFalse(state3.hasMoreTransactions)
     }

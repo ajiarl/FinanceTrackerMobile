@@ -8,6 +8,7 @@ import com.sena.financetracker.data.BudgetEntity
 import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.CategoryDao
 import com.sena.financetracker.data.CategoryEntity
+import com.sena.financetracker.data.FinanceSummary
 import com.sena.financetracker.data.NotificationDao
 import com.sena.financetracker.data.NotificationEntity
 import com.sena.financetracker.data.PagedTransactionsResult
@@ -132,6 +133,57 @@ class TransactionRepository(
      */
     suspend fun getTransactionsPagedWithHasMore(limit: Int, offset: Int): PagedTransactionsResult =
         transactionDao.getTransactionsPagedWithHasMore(limit, offset)
+
+    /**
+     * Menghitung total pemasukan dan pengeluaran secara langsung di tingkat basis data (SQLite engine).
+     *
+     * @param query Kata kunci pencarian pada judul atau catatan transaksi.
+     * @param category Filter kategori transaksi.
+     * @param startDate Batas awal tanggal transaksi (format YYYY-MM-DD).
+     * @param endDate Batas akhir tanggal transaksi (format YYYY-MM-DD).
+     * @return [FinanceSummary] berisi akumulasi totalIncome dan totalExpense.
+     */
+    suspend fun getFinanceSummary(
+        query: String? = null,
+        category: String? = null,
+        startDate: String? = null,
+        endDate: String? = null
+    ): FinanceSummary = transactionDao.getFinanceSummary(query, category, startDate, endDate)
+
+    /**
+     * Mengambil daftar transaksi terpaginasi dengan penyaringan multi-kriteria langsung dari SQLite.
+     *
+     * @param query Kata kunci pencarian pada judul atau catatan transaksi.
+     * @param type Filter tipe transaksi ("INCOME", "EXPENSE", atau null untuk semua).
+     * @param category Filter kategori transaksi.
+     * @param startDate Batas awal tanggal transaksi (format YYYY-MM-DD).
+     * @param endDate Batas akhir tanggal transaksi (format YYYY-MM-DD).
+     * @param limit Jumlah transaksi per halaman yang diminta.
+     * @param offset Pergeseran baris data.
+     * @return [PagedTransactionsResult] memuat daftar transaksi dan status hasMore.
+     */
+    suspend fun getFilteredTransactionsPaged(
+        query: String? = null,
+        type: String? = null,
+        category: String? = null,
+        startDate: String? = null,
+        endDate: String? = null,
+        limit: Int = 50,
+        offset: Int = 0
+    ): PagedTransactionsResult = transactionDao.getFilteredTransactionsPaged(
+        query = query,
+        type = type,
+        category = category,
+        startDate = startDate,
+        endDate = endDate,
+        limit = limit,
+        offset = offset
+    )
+
+    /**
+     * Mengalirkan sinyal pembaruan data transaksi dari DAO untuk observasi reaktif hemat memori.
+     */
+    fun getTransactionUpdateTrigger(): Flow<Long> = transactionDao.getTransactionUpdateTrigger()
 
     /**
      * Menghitung total transaksi tersimpan di database secara efisien melalui query COUNT(*).

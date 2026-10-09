@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /**
  * SQLite Open Helper terpadu pengelola koneksi dan StateFlow reaktif.
@@ -273,6 +274,113 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
                 val resultList = if (hasMore) list.take(limit) else list
                 PagedTransactionsResult(transactions = resultList, hasMore = hasMore)
             }
+
+        override suspend fun getFinanceSummary(
+            query: String?,
+            category: String?,
+            startDate: String?,
+            endDate: String?
+        ): FinanceSummary = withContext(Dispatchers.IO) {
+            val db = readableDatabase
+            val conditions = mutableListOf<String>()
+            val args = mutableListOf<String>()
+
+            if (!query.isNullOrBlank()) {
+                conditions.add("(title LIKE ? OR notes LIKE ?)")
+                val q = "%${query.trim()}%"
+                args.add(q)
+                args.add(q)
+            }
+            if (!category.isNullOrBlank() && !category.trim().equals("ALL", ignoreCase = true)) {
+                conditions.add("category = ?")
+                args.add(category.trim())
+            }
+            if (!startDate.isNullOrBlank()) {
+                conditions.add("date >= ?")
+                args.add(startDate.trim())
+            }
+            if (!endDate.isNullOrBlank()) {
+                conditions.add("date <= ?")
+                args.add(endDate.trim())
+            }
+
+            val where = if (conditions.isNotEmpty()) "WHERE " + conditions.joinToString(" AND ") else ""
+            val sql = """
+                SELECT 
+                    COALESCE(SUM(CASE WHEN UPPER(type) = 'INCOME' THEN amount ELSE 0.0 END), 0.0) AS totalIncome,
+                    COALESCE(SUM(CASE WHEN UPPER(type) = 'EXPENSE' THEN amount ELSE 0.0 END), 0.0) AS totalExpense
+                FROM $TABLE_TRANSACTIONS
+                $where
+            """.trimIndent()
+
+            val cursor = db.rawQuery(sql, if (args.isNotEmpty()) args.toTypedArray() else null)
+            cursor.use { c ->
+                if (c.moveToFirst()) {
+                    val income = c.getDouble(c.getColumnIndexOrThrow("totalIncome"))
+                    val expense = c.getDouble(c.getColumnIndexOrThrow("totalExpense"))
+                    FinanceSummary(totalIncome = income, totalExpense = expense)
+                } else {
+                    FinanceSummary(totalIncome = 0.0, totalExpense = 0.0)
+                }
+            }
+        }
+
+        override suspend fun getFilteredTransactionsPaged(
+            query: String?,
+            type: String?,
+            category: String?,
+            startDate: String?,
+            endDate: String?,
+            limit: Int,
+            offset: Int
+        ): PagedTransactionsResult = withContext(Dispatchers.IO) {
+            val db = readableDatabase
+            val conditions = mutableListOf<String>()
+            val args = mutableListOf<String>()
+
+            if (!query.isNullOrBlank()) {
+                conditions.add("(title LIKE ? OR notes LIKE ?)")
+                val q = "%${query.trim()}%"
+                args.add(q)
+                args.add(q)
+            }
+            if (!type.isNullOrBlank() && !type.trim().equals("ALL", ignoreCase = true)) {
+                conditions.add("UPPER(type) = ?")
+                args.add(type.trim().uppercase(Locale.ROOT))
+            }
+            if (!category.isNullOrBlank() && !category.trim().equals("ALL", ignoreCase = true)) {
+                conditions.add("category = ?")
+                args.add(category.trim())
+            }
+            if (!startDate.isNullOrBlank()) {
+                conditions.add("date >= ?")
+                args.add(startDate.trim())
+            }
+            if (!endDate.isNullOrBlank()) {
+                conditions.add("date <= ?")
+                args.add(endDate.trim())
+            }
+
+            val where = if (conditions.isNotEmpty()) "WHERE " + conditions.joinToString(" AND ") else ""
+            val fetchLimit = limit + 1
+            val sql = """
+                SELECT * FROM $TABLE_TRANSACTIONS
+                $where
+                ORDER BY $COL_TX_DATE DESC, $COL_TX_ID DESC
+                LIMIT $fetchLimit OFFSET $offset
+            """.trimIndent()
+
+            val cursor = db.rawQuery(sql, if (args.isNotEmpty()) args.toTypedArray() else null)
+            val list = mutableListOf<TransactionEntity>()
+            cursor.use { c ->
+                while (c.moveToNext()) {
+                    list.add(DatabaseMappers.mapTransaction(c))
+                }
+            }
+            val hasMore = list.size > limit
+            val resultList = if (hasMore) list.take(limit) else list
+            PagedTransactionsResult(transactions = resultList, hasMore = hasMore)
+        }
 
         override suspend fun insertTransaction(transaction: TransactionEntity): Long = withContext(Dispatchers.IO) {
             val db = writableDatabase
