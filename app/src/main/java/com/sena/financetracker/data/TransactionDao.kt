@@ -342,6 +342,32 @@ interface TransactionDao {
     suspend fun deleteTransaction(id: Long)
     suspend fun updateTransaction(transaction: TransactionEntity)
     suspend fun getTransactionById(id: Long): TransactionEntity?
+
+    /**
+     * Mengambil daftar transaksi dalam rentang periode tanggal tertentu dari SQLite
+     * dengan pembatasan jumlah baris ([limit]) setelah dilakukan penyaringan tanggal.
+     * Digunakan secara khusus untuk sampel data AI Insight agar transaksi periode
+     * tidak terpotong oleh transaksi dari periode lain sebelum filter diterapkan.
+     *
+     * @param startDate Batas awal tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @param endDate Batas akhir tanggal transaksi (format YYYY-MM-DD atau null untuk semua).
+     * @param limit Batas maksimal baris transaksi yang dikembalikan (default 100).
+     * @return Daftar entitas transaksi terurut tanggal dan id menurun (DESC).
+     */
+    suspend fun getTransactionsForPeriod(
+        startDate: String? = null,
+        endDate: String? = null,
+        limit: Int = 100
+    ): List<TransactionEntity> {
+        val all = getAllTransactions().firstOrNull() ?: emptyList()
+        val filtered = all.filter { tx ->
+            val matchStart = startDate.isNullOrBlank() || tx.date >= startDate
+            val matchEnd = endDate.isNullOrBlank() || tx.date <= endDate
+            matchStart && matchEnd
+        }.sortedWith(compareByDescending<TransactionEntity> { it.date }.thenByDescending { it.id })
+        return filtered.take(limit)
+    }
+
     suspend fun clearAllTransactions() {}
     suspend fun insertTransactionsBatch(transactions: List<TransactionEntity>): List<Long> {
         return transactions.map { insertTransaction(it) }

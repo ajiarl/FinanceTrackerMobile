@@ -113,6 +113,22 @@ fun resolveReportsDateRange(
 ): Pair<String?, String?> = resolveReportsDateRange(ReportsPreset.fromString(preset), referenceDate)
 
 /**
+ * Menghitung rentang tanggal [startDate, endDate] berdasarkan [ReportsPreset] dan [java.time.Clock].
+ */
+fun resolveReportsDateRange(
+    preset: ReportsPreset,
+    clock: java.time.Clock
+): Pair<String?, String?> = resolveReportsDateRange(preset, Date(clock.millis()))
+
+/**
+ * Menghitung rentang tanggal [startDate, endDate] berdasarkan string preset dan [java.time.Clock].
+ */
+fun resolveReportsDateRange(
+    preset: String,
+    clock: java.time.Clock
+): Pair<String?, String?> = resolveReportsDateRange(ReportsPreset.fromString(preset), Date(clock.millis()))
+
+/**
  * State analitik laporan keuangan & diagram arus kas.
  *
  * @property periodPreset Pilihan filter periode laporan ("THIS_MONTH", "LAST_MONTH", "LAST_3_MONTHS", "ALL_TIME").

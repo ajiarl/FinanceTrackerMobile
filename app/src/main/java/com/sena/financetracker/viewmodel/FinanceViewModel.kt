@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.time.Clock
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -46,7 +47,8 @@ import java.util.Locale
 class FinanceViewModel(
     private val repository: TransactionRepository,
     private val scopeOverride: CoroutineScope? = null,
-    private val context: Context? = null
+    private val context: Context? = null,
+    private val clock: Clock = Clock.systemDefaultZone()
 ) : ViewModel() {
 
     private val activeScope: CoroutineScope = scopeOverride ?: viewModelScope
@@ -150,11 +152,11 @@ class FinanceViewModel(
     )
 
     private fun resolveDateRange(dateFilter: String): Pair<String?, String?> {
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(clock.millis()))
         return when (dateFilter.uppercase(Locale.ROOT)) {
             "TODAY" -> Pair(today, today)
             "THIS_MONTH" -> {
-                val cal = Calendar.getInstance()
+                val cal = Calendar.getInstance().apply { time = Date(clock.millis()) }
                 val year = cal.get(Calendar.YEAR)
                 val month = String.format(Locale.ROOT, "%02d", cal.get(Calendar.MONTH) + 1)
                 val maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
@@ -240,14 +242,14 @@ class FinanceViewModel(
             _selectedReportsPreset,
             repository.getTransactionUpdateTrigger()
         ) { preset, _ ->
-            val (start, end) = resolveReportsDateRange(preset)
+            val (start, end) = resolveReportsDateRange(preset, Date(clock.millis()))
             repository.getReportsAnalytics(start, end).copy(periodPreset = preset.name)
         }
 
         val coreDataFlow: Flow<CoreData> = combine(
             repository.getAllAccounts(),
             repository.getAllCategories(),
-            repository.getBudgetProgress()
+            repository.getBudgetProgress(SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date(clock.millis())))
         ) { accs, cats, budgets ->
             CoreData(accs, cats, budgets)
         }
@@ -654,47 +656,50 @@ class FinanceViewModel(
     /**
      * Memicu permintaan analisis finansial cerdas "Pak Hemat · AI Insight"
      * untuk rentang transaksi tertentu atau transaksi periode yang sedang aktif.
+     * Menggunakan penyaringan SQL SQLite sebelum LIMIT 100 dan menyertakan ringkasan
+     * agregasi periode lengkap dari basis data agar konteks angka tetap utuh dan akurat.
      */
     fun fetchAiInsight(startDate: String? = null, endDate: String? = null) {
         activeScope.launch(coroutineExceptionHandler) {
             _isAiInsightLoading.value = true
             _aiInsightError.value = null
             try {
-                val allTx = repository.getTransactionsPaged(limit = 100, offset = 0)
-                val allAccounts = repository.getAllAccounts().first()
-                val allBudgets = repository.getBudgetProgress().first()
-                val targetTransactions = if (!startDate.isNullOrBlank() && !endDate.isNullOrBlank()) {
-                    allTx.filter { tx ->
-                        val date = tx.date.take(10)
-                        date in startDate..endDate
-                    }
+                val (resolvedStart, resolvedEnd) = if (!startDate.isNullOrBlank() && !endDate.isNullOrBlank()) {
+                    Pair(startDate, endDate)
                 } else {
-                    val sdfMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault())
-                    val cal = Calendar.getInstance()
-                    val thisMonthStr = sdfMonth.format(cal.time)
-                    cal.add(Calendar.MONTH, -1)
-                    val lastMonthStr = sdfMonth.format(cal.time)
-
-                    val last3MonthsSet = mutableSetOf<String>()
-                    val cal3 = Calendar.getInstance()
-                    for (i in 0..2) {
-                        last3MonthsSet.add(sdfMonth.format(cal3.time))
-                        cal3.add(Calendar.MONTH, -1)
-                    }
-
-                    when (_selectedReportsPreset.value) {
-                        ReportsPreset.THIS_MONTH -> allTx.filter { it.date.take(7) == thisMonthStr }
-                        ReportsPreset.LAST_MONTH -> allTx.filter { it.date.take(7) == lastMonthStr }
-                        ReportsPreset.LAST_3_MONTHS -> allTx.filter { last3MonthsSet.contains(it.date.take(7)) }
-                        ReportsPreset.ALL_TIME -> allTx
-                    }
+                    resolveReportsDateRange(_selectedReportsPreset.value, Date(clock.millis()))
                 }
 
-                val periodTitle = when (_selectedReportsPreset.value) {
-                    ReportsPreset.LAST_MONTH -> "Bulan Lalu"
-                    ReportsPreset.LAST_3_MONTHS -> "3 Bulan Terakhir"
-                    ReportsPreset.ALL_TIME -> "Semua Waktu"
-                    ReportsPreset.THIS_MONTH -> "Bulan Ini"
+                // 1. Ambil sampel transaksi periode langsung via SQL filter sebelum LIMIT 100
+                val targetTransactions = repository.getTransactionsForPeriod(
+                    startDate = resolvedStart,
+                    endDate = resolvedEnd,
+                    limit = 100
+                )
+
+                // 2. Ambil ringkasan agregasi periode utuh dan laporan analitik dari SQLite
+                val periodSummary = repository.getFinanceSummary(
+                    startDate = resolvedStart,
+                    endDate = resolvedEnd
+                )
+                val reportsAnalytics = repository.getReportsAnalytics(
+                    startDate = resolvedStart,
+                    endDate = resolvedEnd
+                )
+
+                val allAccounts = repository.getAllAccounts().first()
+                val currentPeriodMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date(clock.millis()))
+                val allBudgets = repository.getBudgetProgress(currentPeriodMonth).first()
+
+                val periodTitle = if (!startDate.isNullOrBlank() && !endDate.isNullOrBlank()) {
+                    "$startDate s/d $endDate"
+                } else {
+                    when (_selectedReportsPreset.value) {
+                        ReportsPreset.LAST_MONTH -> "Bulan Lalu"
+                        ReportsPreset.LAST_3_MONTHS -> "3 Bulan Terakhir"
+                        ReportsPreset.ALL_TIME -> "Semua Waktu"
+                        ReportsPreset.THIS_MONTH -> "Bulan Ini"
+                    }
                 }
 
                 val currentApiKey = if (context != null) {
@@ -708,7 +713,9 @@ class FinanceViewModel(
                     budgets = allBudgets,
                     transactions = targetTransactions,
                     periodTitle = periodTitle,
-                    apiKey = currentApiKey
+                    apiKey = currentApiKey,
+                    periodSummary = periodSummary,
+                    reportsAnalytics = reportsAnalytics
                 )
                 _aiInsightText.value = insight
             } catch (e: Exception) {
@@ -726,11 +733,12 @@ class FinanceViewModel(
         name: String,
         category: String,
         limitAmount: Double,
-        period: String = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+        period: String = ""
     ) {
+        val targetPeriod = if (period.isNotBlank()) period else SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date(clock.millis()))
         activeScope.launch(coroutineExceptionHandler) {
             try {
-                repository.addBudget(name, category, limitAmount, period)
+                repository.addBudget(name, category, limitAmount, targetPeriod)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(errorMessage = e.message)
             }
@@ -758,11 +766,12 @@ class FinanceViewModel(
         amount: Double,
         type: String,
         category: String,
-        date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
+        date: String = "",
         accountId: Long = 1L,
         accountName: String = "Dompet Tunai",
         notes: String = ""
     ) {
+        val targetDate = if (date.isNotBlank()) date else SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(clock.millis()))
         activeScope.launch(coroutineExceptionHandler) {
             try {
                 val newTx = TransactionEntity(
@@ -770,7 +779,7 @@ class FinanceViewModel(
                     amount = amount,
                     type = type,
                     category = category,
-                    date = date,
+                    date = targetDate,
                     accountId = accountId,
                     accountName = accountName,
                     notes = notes
@@ -816,11 +825,12 @@ class FinanceViewModel(
         toAccount: AccountEntity,
         amount: Double,
         notes: String = "",
-        date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        date: String = ""
     ) {
+        val targetDate = if (date.isNotBlank()) date else SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(clock.millis()))
         activeScope.launch(coroutineExceptionHandler) {
             try {
-                repository.transferFunds(fromAccount, toAccount, amount, notes, date)
+                repository.transferFunds(fromAccount, toAccount, amount, notes, targetDate)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(errorMessage = e.message)
             }
@@ -850,11 +860,12 @@ class FinanceViewModel(
     fun reconcileAccount(
         account: AccountEntity,
         actualBalance: Double,
-        date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        date: String = ""
     ) {
+        val targetDate = if (date.isNotBlank()) date else SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(clock.millis()))
         activeScope.launch(coroutineExceptionHandler) {
             try {
-                repository.reconcileAccount(account, actualBalance, date)
+                repository.reconcileAccount(account, actualBalance, targetDate)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(errorMessage = e.message)
             }
@@ -960,12 +971,13 @@ class FinanceViewModel(
      */
     class Factory(
         private val repository: TransactionRepository,
-        private val context: Context? = null
+        private val context: Context? = null,
+        private val clock: Clock = Clock.systemDefaultZone()
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(FinanceViewModel::class.java)) {
-                return FinanceViewModel(repository, context = context) as T
+                return FinanceViewModel(repository, context = context, clock = clock) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }

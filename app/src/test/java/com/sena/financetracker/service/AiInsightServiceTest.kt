@@ -3,7 +3,10 @@ package com.sena.financetracker.service
 import com.sena.financetracker.data.AccountEntity
 import com.sena.financetracker.data.BudgetEntity
 import com.sena.financetracker.data.BudgetProgressItem
+import com.sena.financetracker.data.FinanceSummary
 import com.sena.financetracker.data.TransactionEntity
+import com.sena.financetracker.viewmodel.CategoryBreakdownItem
+import com.sena.financetracker.viewmodel.ReportsAnalyticsState
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -254,6 +257,63 @@ class AiInsightServiceTest {
         assertNotNull(result)
         assertTrue(result.isNotBlank())
         assertTrue(result.contains("Ji") || result.contains("Makanan"))
+    }
+
+    @Test
+    fun getFinancialInsight_withPeriodSummary_prioritizesDatabaseAggregationOverSampledTransactions() = runBlocking {
+        val accounts = listOf(
+            AccountEntity(id = 1, name = "BCA", type = "BANK", balance = 5_000_000.0)
+        )
+        // Hanya 1 transaksi cuplikan (misal transaksi teratas dari LIMIT 100)
+        val sampledTxs = listOf(
+            TransactionEntity(id = 1, title = "Makan Siang", amount = 50_000.0, type = "EXPENSE", category = "Makanan", date = "2026-10-01", accountId = 1)
+        )
+        // Namun ringkasan database mencatat total riil dari seluruh transaksi periode
+        val dbSummary = FinanceSummary(
+            totalIncome = 10_000_000.0,
+            totalExpense = 4_000_000.0
+        )
+
+        val result = AiInsightService.getFinancialInsight(
+            accounts = accounts,
+            budgets = emptyList(),
+            transactions = sampledTxs,
+            periodTitle = "Bulan Ini",
+            apiKey = "",
+            periodSummary = dbSummary
+        )
+
+        assertNotNull(result)
+        // Menghitung saving rate berdasarkan total riil: (10M - 4M)/10M = 60%
+        assertTrue("Insight harus menghitung saving rate berdasarkan total agregasi SQL", result.contains("60%"))
+    }
+
+    @Test
+    fun getFinancialInsight_withReportsAnalytics_usesCategoryBreakdownAndTotals() = runBlocking {
+        val accounts = listOf(
+            AccountEntity(id = 1, name = "Mandiri", type = "BANK", balance = 8_000_000.0)
+        )
+        val reports = ReportsAnalyticsState(
+            totalIncome = 12_000_000.0,
+            totalExpense = 2_400_000.0,
+            netSavings = 9_600_000.0,
+            savingRate = 80,
+            categoryBreakdown = listOf(
+                CategoryBreakdownItem(category = "Investasi", totalAmount = 2_400_000.0, percentage = 100, color = "#10B981")
+            )
+        )
+
+        val result = AiInsightService.getFinancialInsight(
+            accounts = accounts,
+            budgets = emptyList(),
+            transactions = emptyList(),
+            periodTitle = "Bulan Ini",
+            apiKey = "",
+            reportsAnalytics = reports
+        )
+
+        assertNotNull(result)
+        assertTrue("Insight harus menyertakan rasio tabungan 80% dari laporan agregasi", result.contains("80%"))
     }
 
     @Test

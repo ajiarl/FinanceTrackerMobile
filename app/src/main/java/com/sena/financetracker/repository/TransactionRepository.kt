@@ -222,6 +222,23 @@ class TransactionRepository(
     ): ReportsAnalyticsState = transactionDao.getReportsAnalytics(startDate, endDate)
 
     /**
+     * Mengambil daftar transaksi dalam rentang periode tanggal tertentu dari SQLite
+     * dengan pembatasan jumlah baris ([limit]) setelah dilakukan filter tanggal.
+     * Digunakan secara khusus untuk sampel data AI Insight agar transaksi periode
+     * tidak terpotong oleh transaksi bulan lain.
+     *
+     * @param startDate Batas awal tanggal transaksi (format YYYY-MM-DD atau null).
+     * @param endDate Batas akhir tanggal transaksi (format YYYY-MM-DD atau null).
+     * @param limit Batas maksimal entitas transaksi yang dikembalikan (default 100).
+     * @return Daftar entitas transaksi terurut tanggal dan id descending.
+     */
+    suspend fun getTransactionsForPeriod(
+        startDate: String? = null,
+        endDate: String? = null,
+        limit: Int = 100
+    ): List<TransactionEntity> = transactionDao.getTransactionsForPeriod(startDate, endDate, limit)
+
+    /**
      * Mengalirkan sinyal pembaruan data transaksi dari DAO untuk observasi reaktif hemat memori.
      */
     fun getTransactionUpdateTrigger(): Flow<Long> = transactionDao.getTransactionUpdateTrigger()

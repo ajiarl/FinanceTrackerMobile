@@ -30,33 +30,46 @@ object AiInsightService {
 
     /**
      * Meminta analisis AI dari Groq Cloud secara background IO dengan fallback aturan lokal jika gagal / offline.
-     * Menerima konteks menyeluruh: Accounts, Budgets, dan Transactions.
+     * Menerima konteks menyeluruh: Accounts, Budgets, Transactions, dan ringkasan agregat periode utuh dari SQLite.
      */
     suspend fun getFinancialInsight(
         accounts: List<AccountEntity> = emptyList(),
         budgets: List<BudgetProgressItem> = emptyList(),
         transactions: List<TransactionEntity> = emptyList(),
         periodTitle: String = "Periode Ini",
-        apiKey: String = com.sena.financetracker.util.SecurityConfig.getGroqApiKey()
+        apiKey: String = com.sena.financetracker.util.SecurityConfig.getGroqApiKey(),
+        periodSummary: com.sena.financetracker.data.FinanceSummary? = null,
+        reportsAnalytics: com.sena.financetracker.viewmodel.ReportsAnalyticsState? = null
     ): String = withContext(Dispatchers.IO) {
         val totalNetWorth = accounts.sumOf { it.balance }
         val overBudgets = budgets.filter { it.isOver || it.percentage >= 100 }
         val criticalBudgets = budgets.filter { !it.isOver && it.percentage in 80..99 }
 
-        if (transactions.isEmpty() && accounts.isEmpty()) {
+        if (transactions.isEmpty() && accounts.isEmpty() &&
+            (periodSummary == null || (periodSummary.totalIncome == 0.0 && periodSummary.totalExpense == 0.0)) &&
+            (reportsAnalytics == null || (reportsAnalytics.totalIncome == 0.0 && reportsAnalytics.totalExpense == 0.0))
+        ) {
             return@withContext "Belum ada catatan rekening dan transaksi di $periodTitle nih, Ji. Catat dulu biar Pak Hemat bisa bedah kas kamu!"
         }
 
-        val totalIncome = transactions.filter { it.type.equals("INCOME", ignoreCase = true) }.sumOf { it.amount }
-        val totalExpense = transactions.filter { it.type.equals("EXPENSE", ignoreCase = true) }.sumOf { it.amount }
-        val categoryBreakdown = transactions
-            .filter { it.type.equals("EXPENSE", ignoreCase = true) }
-            .groupBy { it.category.ifBlank { "Lainnya" } }
-            .mapValues { it.value.sumOf { tx -> tx.amount } }
-            .toList()
-            .sortedByDescending { it.second }
+        val totalIncome = periodSummary?.totalIncome
+            ?: reportsAnalytics?.totalIncome
+            ?: transactions.filter { it.type.equals("INCOME", ignoreCase = true) }.sumOf { it.amount }
+        val totalExpense = periodSummary?.totalExpense
+            ?: reportsAnalytics?.totalExpense
+            ?: transactions.filter { it.type.equals("EXPENSE", ignoreCase = true) }.sumOf { it.amount }
 
-        val topCategories = categoryBreakdown.take(3)
+        val topCategories = if (reportsAnalytics != null && reportsAnalytics.categoryBreakdown.isNotEmpty()) {
+            reportsAnalytics.categoryBreakdown.map { it.category to it.totalAmount }.take(3)
+        } else {
+            val categoryBreakdown = transactions
+                .filter { it.type.equals("EXPENSE", ignoreCase = true) }
+                .groupBy { it.category.ifBlank { "Lainnya" } }
+                .mapValues { it.value.sumOf { tx -> tx.amount } }
+                .toList()
+                .sortedByDescending { it.second }
+            categoryBreakdown.take(3)
+        }
 
         // Seleksi cuplikan transaksi pengeluaran teratas / mencolok (maksimal 5 transaksi)
         val significantTransactions = transactions

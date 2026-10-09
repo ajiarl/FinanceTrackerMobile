@@ -674,6 +674,42 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             }
         }
 
+        override suspend fun getTransactionsForPeriod(
+            startDate: String?,
+            endDate: String?,
+            limit: Int
+        ): List<TransactionEntity> = withContext(Dispatchers.IO) {
+            val db = readableDatabase
+            val conditions = mutableListOf<String>()
+            val args = mutableListOf<String>()
+
+            if (!startDate.isNullOrBlank()) {
+                conditions.add("$COL_TX_DATE >= ?")
+                args.add(startDate.trim())
+            }
+            if (!endDate.isNullOrBlank()) {
+                conditions.add("$COL_TX_DATE <= ?")
+                args.add(endDate.trim())
+            }
+
+            val where = if (conditions.isNotEmpty()) "WHERE " + conditions.joinToString(" AND ") else ""
+            val sql = """
+                SELECT * FROM $TABLE_TRANSACTIONS
+                $where
+                ORDER BY $COL_TX_DATE DESC, $COL_TX_ID DESC
+                LIMIT $limit
+            """.trimIndent()
+
+            val cursor = db.rawQuery(sql, if (args.isNotEmpty()) args.toTypedArray() else null)
+            val list = mutableListOf<TransactionEntity>()
+            cursor.use { c ->
+                while (c.moveToNext()) {
+                    list.add(DatabaseMappers.mapTransaction(c))
+                }
+            }
+            list
+        }
+
         override suspend fun insertTransactionsBatch(transactions: List<TransactionEntity>): List<Long> =
             withContext(Dispatchers.IO) {
                 val db = writableDatabase

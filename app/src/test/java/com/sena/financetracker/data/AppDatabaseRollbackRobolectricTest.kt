@@ -6,6 +6,9 @@ import com.sena.financetracker.repository.TransactionRepository
 import com.sena.financetracker.viewmodel.FinanceViewModel
 import com.sena.financetracker.viewmodel.ReportsPreset
 import com.sena.financetracker.viewmodel.resolveReportsDateRange
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
 import java.util.Date
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +19,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -36,6 +40,10 @@ class AppDatabaseRollbackRobolectricTest {
     private lateinit var context: Context
     private lateinit var appDb: AppDatabase
     private lateinit var repository: TransactionRepository
+    private val fixedClock: Clock = Clock.fixed(
+        Instant.parse("2026-10-15T00:00:00Z"),
+        ZoneId.systemDefault()
+    )
 
     @Before
     fun setUp() {
@@ -308,7 +316,8 @@ class AppDatabaseRollbackRobolectricTest {
         // 2. Verifikasi integrasi FinanceViewModel
         val viewModel = FinanceViewModel(
             repository = repository,
-            scopeOverride = CoroutineScope(Dispatchers.Unconfined)
+            scopeOverride = CoroutineScope(Dispatchers.Unconfined),
+            clock = fixedClock
         )
 
         // Uji Batas RAM / Memory: Halaman pertama (limit 50) hanya memuat tepat 50 baris ke RAM
@@ -372,9 +381,8 @@ class AppDatabaseRollbackRobolectricTest {
      */
     @Test
     fun testDedicatedReportsSqlAnalyticsAndPresetIsolation() = runBlocking {
-        val now = Date()
-        val (thisMonthStart, thisMonthEnd) = resolveReportsDateRange(ReportsPreset.THIS_MONTH, now)
-        val (lastMonthStart, lastMonthEnd) = resolveReportsDateRange(ReportsPreset.LAST_MONTH, now)
+        val (thisMonthStart, thisMonthEnd) = resolveReportsDateRange(ReportsPreset.THIS_MONTH, fixedClock)
+        val (lastMonthStart, lastMonthEnd) = resolveReportsDateRange(ReportsPreset.LAST_MONTH, fixedClock)
 
         assertNotNull(thisMonthStart)
         assertNotNull(lastMonthStart)
@@ -458,7 +466,8 @@ class AppDatabaseRollbackRobolectricTest {
         // Inisialisasi ViewModel
         val viewModel = FinanceViewModel(
             repository = repository,
-            scopeOverride = CoroutineScope(Dispatchers.Unconfined)
+            scopeOverride = CoroutineScope(Dispatchers.Unconfined),
+            clock = fixedClock
         )
 
         // Tunggu state awal siap (50 item pertama)
@@ -710,5 +719,137 @@ class AppDatabaseRollbackRobolectricTest {
         val alertNotif = notifications.find { it.message.contains("Makanan") && it.type == "DANGER" }
         assertNotNull("Notifikasi overbudget kategori Makanan harus terpicu", alertNotif)
         assertTrue(alertNotif!!.title.contains("ANGGARAN TERLAMPAUI"))
+    }
+
+    /**
+     * Memverifikasi filter periode SQL untuk AI Insight dieksekusi di basis data sebelum LIMIT 100,
+     * serta menguji determinisme Clock injection pada FinanceViewModel.
+     *
+     * Skenario:
+     * 1. Bersihkan transaksi lama.
+     * 2. Sisipkan 115 transaksi pada bulan berjalan (2026-10).
+     * 3. Sisipkan 10 transaksi pada bulan lalu (2026-09) dengan kategori dan nilai khusus.
+     * 4. Buktikan bahwa getTransactionsPaged(limit = 100) HANYA mengembalikan data 2026-10
+     *    (sehingga filter in-memory naif akan menghasilkan list kosong untuk 2026-09).
+     * 5. Buktikan bahwa getTransactionsForPeriod("2026-09-01", "2026-09-30", limit = 100)
+     *    berhasil mengembalikan tepat 10 transaksi bulan September 2026 via SQL filter.
+     * 6. Verifikasi via FinanceViewModel dengan fixedClock (2026-10-15) bahwa:
+     *    - Pemilihan preset LAST_MONTH secara deterministik menargetkan rentang 2026-09-01 s/d 2026-09-30.
+     *    - fetchAiInsight() mengeksekusi getTransactionsForPeriod dan menyertakan agregasi SQL utuh
+     *      sehingga teks insight memuat ringkasan transaksi bulan lalu dan tidak kosong/error.
+     */
+    @Test
+    fun testAiInsightSqlPeriodFilterBeforeLimit100AndDeterministicClock() = runBlocking {
+        // Bersihkan transaksi lama
+        val existing = repository.getAllTransactions().first()
+        for (tx in existing) {
+            repository.deleteTransaction(tx.id)
+        }
+
+        // Siapkan akun
+        val accounts = repository.getAllAccounts().first()
+        val accountId = if (accounts.isNotEmpty()) accounts[0].id else {
+            appDb.accountDao.insertAccount(
+                com.sena.financetracker.data.AccountEntity(
+                    name = "Dompet Utama",
+                    type = "BANK",
+                    balance = 10000000.0
+                )
+            )
+        }
+
+        // Siapkan 10 transaksi bulan lalu (September 2026)
+        repository.insertTransaction(
+            TransactionEntity(
+                title = "Gaji September",
+                amount = 5000000.0,
+                type = "INCOME",
+                category = "Gaji",
+                date = "2026-09-05",
+                accountId = accountId
+            )
+        )
+        for (i in 1..9) {
+            repository.insertTransaction(
+                TransactionEntity(
+                    title = "Belanja September #$i",
+                    amount = 150000.0,
+                    type = "EXPENSE",
+                    category = "Kebutuhan",
+                    date = "2026-09-10",
+                    accountId = accountId
+                )
+            )
+        }
+
+        // Siapkan 115 transaksi bulan ini (Oktober 2026)
+        for (i in 1..115) {
+            repository.insertTransaction(
+                TransactionEntity(
+                    title = "Transaksi Oktober #$i",
+                    amount = 50000.0,
+                    type = "EXPENSE",
+                    category = "Harian",
+                    date = "2026-10-12",
+                    accountId = accountId
+                )
+            )
+        }
+
+        val allTotal = repository.getAllTransactions().first()
+        assertEquals(125, allTotal.size)
+
+        // 1. Buktikan limit 100 biasa tertutup oleh transaksi Oktober 2026
+        val pagedTransactions = repository.getTransactionsPaged(limit = 100, offset = 0)
+        assertEquals(100, pagedTransactions.size)
+        // Seluruh 100 transaksi paged teratas berasal dari Oktober 2026
+        assertTrue(pagedTransactions.all { it.date.startsWith("2026-10") })
+        // Tidak ada transaksi September di 100 item teratas
+        assertFalse(pagedTransactions.any { it.date.startsWith("2026-09") })
+
+        // 2. Buktikan getTransactionsForPeriod menyaring di level SQL SEBELUM limit 100
+        val septemberTransactions = repository.getTransactionsForPeriod(
+            startDate = "2026-09-01",
+            endDate = "2026-09-30",
+            limit = 100
+        )
+        assertEquals(10, septemberTransactions.size)
+        assertTrue(septemberTransactions.all { it.date.startsWith("2026-09") })
+        assertEquals("Belanja September #9", septemberTransactions[0].title)
+
+        // 3. Verifikasi agregasi ringkasan SQL untuk periode September
+        val septemberSummary = repository.getFinanceSummary(
+            startDate = "2026-09-01",
+            endDate = "2026-09-30"
+        )
+        assertEquals(5000000.0, septemberSummary.totalIncome, 0.001)
+        assertEquals(9 * 150000.0, septemberSummary.totalExpense, 0.001)
+
+        // 4. Verifikasi FinanceViewModel dengan fixedClock
+        val viewModel = FinanceViewModel(
+            repository = repository,
+            scopeOverride = CoroutineScope(Dispatchers.Unconfined),
+            clock = fixedClock
+        )
+
+        // Set preset ke LAST_MONTH (yang via fixedClock 2026-10-15 pasti menyelesaikan 2026-09)
+        viewModel.setReportsPeriodPreset("LAST_MONTH")
+        val state = viewModel.uiState.filter { it.reportsAnalytics.periodPreset == "LAST_MONTH" }.first()
+        assertEquals(5000000.0, state.reportsAnalytics.totalIncome, 0.001)
+        assertEquals(1350000.0, state.reportsAnalytics.totalExpense, 0.001)
+
+        // Panggil fetchAiInsight tanpa parameter (harus otomatis mengambil periode preset LAST_MONTH)
+        viewModel.fetchAiInsight()
+
+        // Tunggu hingga proses insight selesai dan teks terisi
+        val insightState = viewModel.uiState.filter { it.aiInsightText != null || it.aiInsightError != null }.first()
+        assertNull(insightState.aiInsightError)
+        assertNotNull(insightState.aiInsightText)
+        assertTrue(insightState.aiInsightText!!.isNotBlank())
+        // Karena apiKey kosong di unit test, fallback lokal terpanggil dan memuat angka kas periode September
+        assertTrue(
+            insightState.aiInsightText!!.contains("Bulan Lalu") ||
+            insightState.aiInsightText!!.contains("Rp")
+        )
     }
 }
