@@ -89,6 +89,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
 
     private val dbScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _transactionsFlow = MutableStateFlow<List<TransactionEntity>>(emptyList())
+    private val _transactionUpdateTrigger = MutableStateFlow(0L)
     private val _accountsFlow = MutableStateFlow<List<AccountEntity>>(emptyList())
     private val _categoriesFlow = MutableStateFlow<List<CategoryEntity>>(emptyList())
     private val _budgetsFlow = MutableStateFlow<List<BudgetEntity>>(emptyList())
@@ -158,6 +159,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             }
         }
         _transactionsFlow.value = list
+        _transactionUpdateTrigger.value = _transactionUpdateTrigger.value + 1L
     }
 
     private fun refreshAccountsFlowInternal() {
@@ -216,6 +218,16 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
 
         override fun getAllTransactions(): Flow<List<TransactionEntity>> = _transactionsFlow.asStateFlow()
 
+        override fun getTransactionUpdateTrigger(): Flow<Long> = _transactionUpdateTrigger.asStateFlow()
+
+        override suspend fun getTransactionCount(): Int = withContext(Dispatchers.IO) {
+            val db = readableDatabase
+            val cursor = db.rawQuery("SELECT COUNT(*) FROM $TABLE_TRANSACTIONS", null)
+            cursor.use { c ->
+                if (c.moveToFirst()) c.getInt(0) else 0
+            }
+        }
+
         override suspend fun getTransactionsPaged(limit: Int, offset: Int): List<TransactionEntity> =
             withContext(Dispatchers.IO) {
                 val list = mutableListOf<TransactionEntity>()
@@ -236,6 +248,30 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
                     }
                 }
                 list
+            }
+
+        override suspend fun getTransactionsPagedWithHasMore(limit: Int, offset: Int): PagedTransactionsResult =
+            withContext(Dispatchers.IO) {
+                val list = mutableListOf<TransactionEntity>()
+                val db = readableDatabase
+                val cursor = db.query(
+                    TABLE_TRANSACTIONS,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "$COL_TX_DATE DESC, $COL_TX_ID DESC",
+                    "$offset, ${limit + 1}"
+                )
+                cursor.use { c ->
+                    while (c.moveToNext()) {
+                        list.add(DatabaseMappers.mapTransaction(c))
+                    }
+                }
+                val hasMore = list.size > limit
+                val resultList = if (hasMore) list.take(limit) else list
+                PagedTransactionsResult(transactions = resultList, hasMore = hasMore)
             }
 
         override suspend fun insertTransaction(transaction: TransactionEntity): Long = withContext(Dispatchers.IO) {

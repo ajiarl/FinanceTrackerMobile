@@ -365,7 +365,8 @@ fun calculateFinanceTotals(
     pageSize: Int = 50,
     visibleTransactionCount: Int = 50,
     currentDate: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
-    referenceDate: Date = Date()
+    referenceDate: Date = Date(),
+    hasMoreOverride: Boolean? = null
 ): FinanceUiState {
     val totalIncome = transactions
         .filter { it.type.equals("INCOME", ignoreCase = true) }
@@ -398,7 +399,7 @@ fun calculateFinanceTotals(
     )
 
     val pagedFiltered = filtered.take(visibleTransactionCount)
-    val hasMore = filtered.size > visibleTransactionCount
+    val hasMore = hasMoreOverride ?: (filtered.size > visibleTransactionCount)
 
     return FinanceUiState(
         transactions = transactions,

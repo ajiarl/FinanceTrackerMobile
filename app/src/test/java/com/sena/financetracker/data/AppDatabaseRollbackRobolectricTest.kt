@@ -3,10 +3,15 @@ package com.sena.financetracker.data
 import android.content.Context
 import com.sena.financetracker.repository.AccountDomainHandler
 import com.sena.financetracker.repository.TransactionRepository
+import com.sena.financetracker.viewmodel.FinanceViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -256,5 +261,90 @@ class AppDatabaseRollbackRobolectricTest {
         limitFlow.value = 15
         val secondEmission = pagedFlow.first()
         assertEquals(15, secondEmission.size)
+    }
+
+    @Test
+    fun testRealistic120TransactionsPaginationAndSummaryIntegrity() = runBlocking {
+        // Masukkan 120 transaksi ke SQLite: 60 Income (@100.000) dan 60 Expense (@50.000)
+        val dummyList = (1..120).map { i ->
+            val isIncome = i % 2 != 0
+            val title = when (i) {
+                80 -> "Pengeluaran Khusus #80"
+                110 -> "Pemasukan Spesial #110"
+                else -> if (isIncome) "Pemasukan #$i" else "Pengeluaran #$i"
+            }
+            TransactionEntity(
+                title = title,
+                amount = if (isIncome) 100000.0 else 50000.0,
+                type = if (isIncome) "INCOME" else "EXPENSE",
+                category = if (isIncome) "Gaji" else "Makan",
+                date = "2026-10-09",
+                accountId = 2L,
+                accountName = "BCA"
+            )
+        }
+        appDb.transactionDao.insertTransactionsBatch(dummyList)
+
+        // 1. Verifikasi query DAO & Repository dengan SQLite nyata
+        val totalCount = repository.getTransactionCount()
+        assertEquals(120, totalCount)
+
+        val page1Direct = repository.getTransactionsPagedWithHasMore(limit = 50, offset = 0)
+        assertEquals(50, page1Direct.transactions.size)
+        assertTrue(page1Direct.hasMore)
+
+        val page2Direct = repository.getTransactionsPagedWithHasMore(limit = 100, offset = 0)
+        assertEquals(100, page2Direct.transactions.size)
+        assertTrue(page2Direct.hasMore)
+
+        val page3Direct = repository.getTransactionsPagedWithHasMore(limit = 150, offset = 0)
+        assertEquals(120, page3Direct.transactions.size)
+        assertFalse(page3Direct.hasMore)
+
+        // 2. Verifikasi integrasi FinanceViewModel
+        val viewModel = FinanceViewModel(
+            repository = repository,
+            scopeOverride = CoroutineScope(Dispatchers.Unconfined)
+        )
+
+        val state1 = viewModel.uiState.filter { !it.isLoading && it.transactions.size == 120 }.first()
+
+        // Halaman pertama (limit 50): tepat 50 transaksi tampil di list, hasMoreTransactions = TRUE
+        assertEquals(50, state1.filteredTransactions.size)
+        assertTrue(state1.hasMoreTransactions)
+
+        // Total ringkasan (income, expense, reports) tetap menghitung 120 transaksi secara utuh
+        val expectedIncome = 60 * 100000.0 // 6.000.000,0
+        val expectedExpense = 60 * 50000.0 // 3.000.000,0
+        assertEquals(expectedIncome, state1.totalIncome, 0.001)
+        assertEquals(expectedExpense, state1.totalExpense, 0.001)
+        assertEquals(expectedIncome, state1.reportsAnalytics.totalIncome, 0.001)
+        assertEquals(expectedExpense, state1.reportsAnalytics.totalExpense, 0.001)
+
+        // Pencarian menemukan transaksi ke-80 atau ke-110 meskipun awalnya hanya halaman pertama yang dimuat
+        viewModel.setSearchQuery("Pengeluaran Khusus #80")
+        val searchState80 = viewModel.uiState.filter { it.searchQuery == "Pengeluaran Khusus #80" }.first()
+        assertEquals(1, searchState80.filteredTransactions.size)
+        assertEquals("Pengeluaran Khusus #80", searchState80.filteredTransactions[0].title)
+
+        viewModel.setSearchQuery("Pemasukan Spesial #110")
+        val searchState110 = viewModel.uiState.filter { it.searchQuery == "Pemasukan Spesial #110" }.first()
+        assertEquals(1, searchState110.filteredTransactions.size)
+        assertEquals("Pemasukan Spesial #110", searchState110.filteredTransactions[0].title)
+
+        // Reset query pencarian
+        viewModel.setSearchQuery("")
+
+        // Klik "muat lebih banyak" (limit 100): menampilkan 100 transaksi, hasMoreTransactions = TRUE
+        viewModel.loadMoreTransactions()
+        val state2 = viewModel.uiState.filter { it.visibleTransactionCount == 100 && it.searchQuery.isEmpty() }.first()
+        assertEquals(100, state2.filteredTransactions.size)
+        assertTrue(state2.hasMoreTransactions)
+
+        // Halaman terakhir (limit 150): menampilkan 120 transaksi, hasMoreTransactions = FALSE
+        viewModel.loadMoreTransactions()
+        val state3 = viewModel.uiState.filter { it.visibleTransactionCount == 150 && it.searchQuery.isEmpty() }.first()
+        assertEquals(120, state3.filteredTransactions.size)
+        assertFalse(state3.hasMoreTransactions)
     }
 }

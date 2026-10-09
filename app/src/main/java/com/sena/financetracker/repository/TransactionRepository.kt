@@ -10,10 +10,12 @@ import com.sena.financetracker.data.CategoryDao
 import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.NotificationDao
 import com.sena.financetracker.data.NotificationEntity
+import com.sena.financetracker.data.PagedTransactionsResult
 import com.sena.financetracker.data.TransactionDao
 import com.sena.financetracker.data.TransactionEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.text.SimpleDateFormat
@@ -121,32 +123,61 @@ class TransactionRepository(
         transactionDao.getTransactionsPaged(limit, offset)
 
     /**
+     * Mengambil daftar transaksi terpaginasi beserta status ketersediaan halaman berikutnya ([PagedTransactionsResult.hasMore]).
+     * Menerapkan strategi database query `limit + 1` untuk mendeteksi apakah masih ada halaman lanjutan.
+     *
+     * @param limit Batas jumlah transaksi yang diinginkan pada halaman aktif.
+     * @param offset Posisi awal baris transaksi yang dilewati.
+     * @return [PagedTransactionsResult] berisi transaksi maksimal sejumlah limit dan boolean hasMore.
+     */
+    suspend fun getTransactionsPagedWithHasMore(limit: Int, offset: Int): PagedTransactionsResult =
+        transactionDao.getTransactionsPagedWithHasMore(limit, offset)
+
+    /**
+     * Menghitung total transaksi tersimpan di database secara efisien melalui query COUNT(*).
+     */
+    suspend fun getTransactionCount(): Int =
+        transactionDao.getTransactionCount()
+
+    /**
      * Mengalirkan data transaksi terpaginasi secara reaktif berbasis query database LIMIT & OFFSET.
-     * Mengambil hanya sejumlah [limit] data transaksi mulai dari [offset] tanpa memuat seluruh tabel transaksi ke memori.
+     * Mendengarkan sinyal update trigger transaksi tanpa memuat seluruh tabel ke memori RAM (zero RAM leak).
      *
      * @param limit Batas maksimal baris yang diambil.
      * @param offset Posisi baris awal pengambilan data (default 0).
      * @return Flow berisi daftar transaksi terpaginasi.
      */
     fun getTransactionsPagedFlow(limit: Int, offset: Int = 0): Flow<List<TransactionEntity>> =
-        transactionDao.getAllTransactions().map { allTxs ->
+        transactionDao.getTransactionUpdateTrigger().map {
             val paged = transactionDao.getTransactionsPaged(limit, offset)
-            if (paged.isNotEmpty()) paged else allTxs.drop(offset).take(limit)
+            if (paged.isNotEmpty()) paged else transactionDao.getAllTransactions().firstOrNull()?.drop(offset)?.take(limit) ?: emptyList()
         }
 
     /**
      * Mengalirkan data transaksi terpaginasi secara dinamis berdasarkan StateFlow batas [limitFlow].
      * Terpicu secara reaktif saat jumlah transaksi terlihat bertambah (load more pagination)
-     * atau ketika terjadi mutasi data transaksi di database SQLite.
+     * atau ketika terjadi mutasi data transaksi di database SQLite tanpa eager-loading seluruh tabel.
      *
      * @param limitFlow Flow yang memancarkan batas limit transaksi aktif.
      * @param offset Posisi baris awal pengambilan data (default 0).
      * @return Flow berisi daftar transaksi terpaginasi sesuai limit dinamis.
      */
     fun getTransactionsPagedFlow(limitFlow: Flow<Int>, offset: Int = 0): Flow<List<TransactionEntity>> =
-        combine(transactionDao.getAllTransactions(), limitFlow) { allTxs, limit ->
+        combine(transactionDao.getTransactionUpdateTrigger(), limitFlow) { _, limit ->
             val paged = transactionDao.getTransactionsPaged(limit, offset)
-            if (paged.isNotEmpty()) paged else allTxs.drop(offset).take(limit)
+            if (paged.isNotEmpty()) paged else transactionDao.getAllTransactions().firstOrNull()?.drop(offset)?.take(limit) ?: emptyList()
+        }
+
+    /**
+     * Mengalirkan data transaksi terpaginasi dinamis beserta status [PagedTransactionsResult.hasMore].
+     *
+     * @param limitFlow Flow batas limit transaksi aktif.
+     * @param offset Posisi baris awal data.
+     * @return Flow [PagedTransactionsResult] dengan transaksi terpaginasi dan status hasMore.
+     */
+    fun getTransactionsPagedWithHasMoreFlow(limitFlow: Flow<Int>, offset: Int = 0): Flow<PagedTransactionsResult> =
+        combine(transactionDao.getTransactionUpdateTrigger(), limitFlow) { _, limit ->
+            transactionDao.getTransactionsPagedWithHasMore(limit, offset)
         }
 
     suspend fun insertTransaction(transaction: TransactionEntity): Long {
