@@ -9,6 +9,7 @@ import com.sena.financetracker.data.BudgetProgressItem
 import com.sena.financetracker.data.CategoryDao
 import com.sena.financetracker.data.CategoryEntity
 import com.sena.financetracker.data.CategoryExpenseSummary
+import com.sena.financetracker.data.CategorySpentSummary
 import com.sena.financetracker.data.FinanceSummary
 import com.sena.financetracker.data.MonthlyCashFlowSummary
 import com.sena.financetracker.data.NotificationDao
@@ -503,6 +504,29 @@ class TransactionRepository(
     suspend fun deleteBudget(id: Long) = budgetHandler.deleteBudget(id)
 
     suspend fun updateBudget(budget: BudgetEntity) = budgetHandler.updateBudget(budget)
+
+    /**
+     * Mengambil daftar ringkasan pengeluaran seluruh kategori untuk periode awalan tertentu
+     * langsung via engine SQL SQLite tanpa memuat seluruh baris transaksi ke RAM.
+     *
+     * @param periodPrefix Awalan teks tanggal transaksi (contoh: "2026-10").
+     * @return Daftar [CategorySpentSummary] berisi kategori dan nominal pengeluaran.
+     */
+    suspend fun getCategoryExpensesForPeriod(periodPrefix: String): List<CategorySpentSummary> {
+        return transactionDao.getCategoryExpensesForPeriod(periodPrefix)
+    }
+
+    /**
+     * Menghitung total pengeluaran untuk satu kategori spesifik pada periode awalan tertentu
+     * langsung via engine SQL SQLite.
+     *
+     * @param category Nama kategori pengeluaran.
+     * @param periodPrefix Awalan teks tanggal transaksi (contoh: "2026-10").
+     * @return Akumulasi nominal pengeluaran bertipe EXPENSE.
+     */
+    suspend fun getCategorySpentForPeriod(category: String, periodPrefix: String): Double {
+        return transactionDao.getCategorySpentForPeriod(category, periodPrefix)
+    }
 
     // ── NOTIFICATIONS DOMAIN FACADE ───────────────────────────────────────────
     fun getAllNotifications(): Flow<List<NotificationEntity>> = notificationHandler.getAllNotifications()

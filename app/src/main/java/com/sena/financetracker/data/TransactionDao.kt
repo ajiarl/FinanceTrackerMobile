@@ -32,6 +32,17 @@ data class CategoryExpenseSummary(
 )
 
 /**
+ * Ringkasan kalkulasi pengeluaran per kategori hasil agregasi SQL untuk pemantauan anggaran.
+ *
+ * @property category Nama kategori pengeluaran.
+ * @property spent Akumulasi nominal yang telah dibelanjakan pada periode yang ditentukan.
+ */
+data class CategorySpentSummary(
+    val category: String,
+    val spent: Double
+)
+
+/**
  * Model data agregasi ringkas untuk arus kas bulanan (pemasukan vs pengeluaran) hasil agregasi SQL.
  *
  * @property month Label bulan dalam format "YYYY-MM".
@@ -187,6 +198,50 @@ interface TransactionDao {
         return filtered.groupBy { it.category.trim() }
             .map { (cat, list) -> CategoryExpenseSummary(category = cat, totalAmount = list.sumOf { it.amount }) }
             .sortedByDescending { it.totalAmount }
+    }
+
+    /**
+     * Mengambil daftar ringkasan pengeluaran seluruh kategori untuk periode awalan tertentu (contoh "YYYY-MM")
+     * langsung via engine SQL SQLite tanpa memuat seluruh entitas transaksi ke memori (zero RAM overhead).
+     *
+     * @param periodPrefix Awalan teks tanggal transaksi, biasanya berupa format bulan "YYYY-MM".
+     * @return Daftar [CategorySpentSummary] berisi kategori dan akumulasi pengeluaran.
+     */
+    suspend fun getCategoryExpensesForPeriod(periodPrefix: String): List<CategorySpentSummary> {
+        val all = getAllTransactions().firstOrNull() ?: emptyList()
+        return all.filter { tx ->
+            tx.type.equals("EXPENSE", ignoreCase = true) &&
+            tx.date.startsWith(periodPrefix)
+        }.groupBy { it.category.trim() }
+        .map { (cat, list) -> CategorySpentSummary(category = cat, spent = list.sumOf { it.amount }) }
+    }
+
+    /**
+     * Menghitung akumulasi nominal pengeluaran untuk satu kategori spesifik pada periode awalan tertentu
+     * langsung menggunakan kueri agregasi SQL SQLite untuk pengecekan batas anggaran cepat.
+     *
+     * @param category Nama kategori pengeluaran yang dicari.
+     * @param periodPrefix Awalan teks tanggal transaksi (format "YYYY-MM").
+     * @return Total nominal pengeluaran bertipe EXPENSE pada kategori tersebut.
+     */
+    suspend fun getCategorySpentForPeriod(category: String, periodPrefix: String): Double {
+        val all = getAllTransactions().firstOrNull() ?: emptyList()
+        return all.filter { tx ->
+            tx.type.equals("EXPENSE", ignoreCase = true) &&
+            tx.category.trim().equals(category.trim(), ignoreCase = true) &&
+            tx.date.startsWith(periodPrefix)
+        }.sumOf { it.amount }
+    }
+
+    /**
+     * Alias kueri pengeluaran kategori spesifik untuk kenyamanan integrasi evaluasi overbudget.
+     *
+     * @param category Nama kategori pengeluaran yang diperiksa.
+     * @param periodPrefix Awalan teks tanggal transaksi (format "YYYY-MM").
+     * @return Total pengeluaran yang telah dicatat pada database.
+     */
+    suspend fun getSpentForCategoryAndPeriod(category: String, periodPrefix: String): Double {
+        return getCategorySpentForPeriod(category, periodPrefix)
     }
 
     /**

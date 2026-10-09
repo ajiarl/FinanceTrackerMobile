@@ -539,4 +539,176 @@ class AppDatabaseRollbackRobolectricTest {
         assertEquals(originalReports.categoryBreakdown, statePage123.reportsAnalytics.categoryBreakdown)
         assertEquals(originalReports.cashflowBars, statePage123.reportsAnalytics.cashflowBars)
     }
+
+    @Test
+    fun testBudgetProgressAndAlertWithDatabaseLevelAggregationAndZeroMemoryLeak() = runBlocking {
+        // 1. Tambahkan 2 anggaran untuk periode "2026-10"
+        repository.addBudget(
+            name = "Anggaran Makanan",
+            category = "Makanan",
+            limitAmount = 2000000.0,
+            period = "2026-10"
+        )
+        repository.addBudget(
+            name = "Anggaran Transportasi",
+            category = "Transportasi",
+            limitAmount = 1000000.0,
+            period = "2026-10"
+        )
+
+        // 2. Masukkan transaksi spesifik di bulan "2026-10"
+        // Makanan: 800.000 + 900.000 = 1.700.000 (85% -> WARNING)
+        repository.insertTransaction(
+            TransactionEntity(
+                id = 0,
+                title = "Belanja Mingguan",
+                amount = 800000.0,
+                type = "EXPENSE",
+                category = "Makanan",
+                date = "2026-10-02"
+            )
+        )
+        repository.insertTransaction(
+            TransactionEntity(
+                id = 0,
+                title = "Restoran Makan Siang",
+                amount = 900000.0,
+                type = "EXPENSE",
+                category = "Makanan",
+                date = "2026-10-10"
+            )
+        )
+        // Reimbursement Makanan (INCOME) -> TIDAK boleh terhitung sebagai expense/spent
+        repository.insertTransaction(
+            TransactionEntity(
+                id = 0,
+                title = "Reimburse Kantor",
+                amount = 500000.0,
+                type = "INCOME",
+                category = "Makanan",
+                date = "2026-10-12"
+            )
+        )
+
+        // Transportasi: 400.000 (40% -> SAFE)
+        repository.insertTransaction(
+            TransactionEntity(
+                id = 0,
+                title = "Bensin Mobil",
+                amount = 400000.0,
+                type = "EXPENSE",
+                category = "Transportasi",
+                date = "2026-10-05"
+            )
+        )
+
+        // Kategori lain (Tagihan): 300.000 -> Tidak boleh mempengaruhi budget Makanan & Transportasi
+        repository.insertTransaction(
+            TransactionEntity(
+                id = 0,
+                title = "Listrik PLN",
+                amount = 300000.0,
+                type = "EXPENSE",
+                category = "Tagihan",
+                date = "2026-10-08"
+            )
+        )
+
+        // Transaksi di bulan lain: "2026-09" dan "2026-11" -> TIDAK boleh terhitung di periode "2026-10"
+        repository.insertTransaction(
+            TransactionEntity(
+                id = 0,
+                title = "Makan Bulan Lalu",
+                amount = 1500000.0,
+                type = "EXPENSE",
+                category = "Makanan",
+                date = "2026-09-25"
+            )
+        )
+        repository.insertTransaction(
+            TransactionEntity(
+                id = 0,
+                title = "Transport Bulan Depan",
+                amount = 600000.0,
+                type = "EXPENSE",
+                category = "Transportasi",
+                date = "2026-11-01"
+            )
+        )
+
+        // 3. Masukkan 120+ transaksi dummy untuk mensimulasikan beban data riil
+        for (i in 1..125) {
+            val dummyType = if (i % 3 == 0) "INCOME" else "EXPENSE"
+            repository.insertTransaction(
+                TransactionEntity(
+                    id = 0,
+                    title = "Dummy Transaction #$i",
+                    amount = 10000.0 * (i % 10 + 1),
+                    type = dummyType,
+                    category = "Hiburan",
+                    date = "2026-10-15"
+                )
+            )
+        }
+
+        // Total transaksi di database minimal 132 transaksi
+        val totalTxInDb = appDb.transactionDao.getTransactionCount()
+        assertTrue("Total transaksi di database harus > 130", totalTxInDb >= 132)
+
+        // PENEGASAN MEMORI: Penambahan 120+ transaksi TIDAK memuat seluruh row transaksi ke cache _transactionsFlow
+        val inMemorySnapshot = appDb.getTransactionsFlowMemoryCacheSnapshot()
+        assertEquals(
+            "Cache _transactionsFlow harus tetap kosong untuk mencegah memory leak / RAM bloat",
+            0,
+            inMemorySnapshot.size
+        )
+
+        // PENEGASAN AGREGASI SQLITE: Verifikasi getBudgetProgress menghitung nominal terpakai (spent) presisi
+        val progressList = repository.getBudgetProgress("2026-10").first()
+        assertEquals(2, progressList.size)
+
+        val makananProgress = progressList.find { it.budget.category == "Makanan" }
+        assertNotNull("Budget Makanan harus ditemukan", makananProgress)
+        assertEquals(1700000.0, makananProgress!!.spentAmount, 0.001)
+        assertEquals(85, makananProgress.percentage)
+        assertEquals("WARNING", makananProgress.statusLevel)
+        assertFalse(makananProgress.isOver)
+
+        val transportProgress = progressList.find { it.budget.category == "Transportasi" }
+        assertNotNull("Budget Transportasi harus ditemukan", transportProgress)
+        assertEquals(400000.0, transportProgress!!.spentAmount, 0.001)
+        assertEquals(40, transportProgress.percentage)
+        assertEquals("SAFE", transportProgress.statusLevel)
+        assertFalse(transportProgress.isOver)
+
+        // PENEGASAN QUERY SPESIFIK & OVERBUDGET ALERT:
+        // Tambahkan pengeluaran Makanan sebesar 400.000 -> Total menjadi 2.100.000 (105% dari limit 2.000.000)
+        val overBudgetTx = TransactionEntity(
+            id = 0,
+            title = "Makan Malam Mewah",
+            amount = 400000.0,
+            type = "EXPENSE",
+            category = "Makanan",
+            date = "2026-10-20"
+        )
+        repository.insertTransaction(overBudgetTx)
+
+        // Query database langsung via getCategorySpentForPeriod
+        val updatedMakananSpent = repository.getCategorySpentForPeriod("Makanan", "2026-10")
+        assertEquals(2100000.0, updatedMakananSpent, 0.001)
+
+        // Verifikasi getBudgetProgress kini menandai CRITICAL & isOver = true
+        val updatedProgressList = repository.getBudgetProgress("2026-10").first()
+        val updatedMakananProgress = updatedProgressList.find { it.budget.category == "Makanan" }!!
+        assertEquals(2100000.0, updatedMakananProgress.spentAmount, 0.001)
+        assertEquals(105, updatedMakananProgress.percentage)
+        assertEquals("CRITICAL", updatedMakananProgress.statusLevel)
+        assertTrue(updatedMakananProgress.isOver)
+
+        // Verifikasi notifikasi alert telah dibuat di database
+        val notifications = repository.getAllNotifications().first()
+        val alertNotif = notifications.find { it.message.contains("Makanan") && it.type == "DANGER" }
+        assertNotNull("Notifikasi overbudget kategori Makanan harus terpicu", alertNotif)
+        assertTrue(alertNotif!!.title.contains("ANGGARAN TERLAMPAUI"))
+    }
 }

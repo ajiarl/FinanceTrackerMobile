@@ -30,18 +30,15 @@ class BudgetDomainHandler(
     ): Flow<List<BudgetProgressItem>> {
         return combine(
             budgetDao.getAllBudgets(),
-            transactionDao.getAllTransactions()
-        ) { budgets, transactions ->
+            transactionDao.getTransactionUpdateTrigger()
+        ) { budgets, _ ->
+            val categoryExpenses = transactionDao.getCategoryExpensesForPeriod(period)
             val activeBudgets = budgets.filter { it.isActive && (it.period.isEmpty() || it.period == period) }
             activeBudgets.map { budget ->
                 val spentAmount = roundCurrency(
-                    transactions
-                        .filter { tx ->
-                            tx.type.equals("EXPENSE", ignoreCase = true) &&
-                            tx.category.trim().equals(budget.category.trim(), ignoreCase = true) &&
-                            tx.date.startsWith(period)
-                        }
-                        .sumOf { it.amount }
+                    categoryExpenses
+                        .filter { it.category.trim().equals(budget.category.trim(), ignoreCase = true) }
+                        .sumOf { it.spent }
                 )
 
                 val percentage = if (budget.limitAmount > 0) {
@@ -108,15 +105,8 @@ class BudgetDomainHandler(
 
         if (matchingBudgets.isEmpty()) return
 
-        val allTransactions = transactionDao.getAllTransactions().first()
         val totalSpentInCategory = roundCurrency(
-            allTransactions
-                .filter { tx ->
-                    tx.type.equals("EXPENSE", ignoreCase = true) &&
-                    tx.category.trim().equals(transaction.category.trim(), ignoreCase = true) &&
-                    tx.date.startsWith(period)
-                }
-                .sumOf { it.amount }
+            transactionDao.getCategorySpentForPeriod(transaction.category, period)
         )
 
         for (budget in matchingBudgets) {

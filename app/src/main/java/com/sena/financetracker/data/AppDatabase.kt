@@ -155,16 +155,17 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
     }
 
     private fun refreshTransactionsFlowInternal() {
-        val list = mutableListOf<TransactionEntity>()
-        val db = readableDatabase
-        val cursor = db.query(TABLE_TRANSACTIONS, null, null, null, null, null, "$COL_TX_ID DESC")
-        cursor.use { c ->
-            while (c.moveToNext()) {
-                list.add(DatabaseMappers.mapTransaction(c))
-            }
-        }
-        _transactionsFlow.value = list
+        // Hentikan eager loading seluruh tabel transaksi ke RAM (zero RAM leak).
+        // Sinyal pembaruan transaksi dialirkan murni via _transactionUpdateTrigger.
         _transactionUpdateTrigger.value = _transactionUpdateTrigger.value + 1L
+    }
+
+    /**
+     * Mengambil snapshot isi cache memori _transactionsFlow untuk pengujian memory hygiene.
+     * Sesuai arsitektur, StateFlow ini tidak lagi memuat baris transaksi secara eager (harus tetap kosong).
+     */
+    fun getTransactionsFlowMemoryCacheSnapshot(): List<TransactionEntity> {
+        return _transactionsFlow.value
     }
 
     private fun refreshAccountsFlowInternal() {
@@ -221,7 +222,19 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
             return this@AppDatabase.runInTransaction(block)
         }
 
-        override fun getAllTransactions(): Flow<List<TransactionEntity>> = _transactionsFlow.asStateFlow()
+        override fun getAllTransactions(): Flow<List<TransactionEntity>> = _transactionUpdateTrigger.map {
+            withContext(Dispatchers.IO) {
+                val list = mutableListOf<TransactionEntity>()
+                val db = readableDatabase
+                val cursor = db.query(TABLE_TRANSACTIONS, null, null, null, null, null, "$COL_TX_ID DESC")
+                cursor.use { c ->
+                    while (c.moveToNext()) {
+                        list.add(DatabaseMappers.mapTransaction(c))
+                    }
+                }
+                list
+            }
+        }
 
         override fun getTransactionUpdateTrigger(): Flow<Long> = _transactionUpdateTrigger.asStateFlow()
 
@@ -561,6 +574,47 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(
                 categoryBreakdown = categoryBreakdown,
                 cashflowBars = cashflowBars
             )
+        }
+
+        override suspend fun getCategoryExpensesForPeriod(periodPrefix: String): List<CategorySpentSummary> =
+            withContext(Dispatchers.IO) {
+                val list = mutableListOf<CategorySpentSummary>()
+                val db = readableDatabase
+                val sql = """
+                    SELECT $COL_TX_CATEGORY AS category, COALESCE(SUM($COL_TX_AMOUNT), 0.0) AS spent
+                    FROM $TABLE_TRANSACTIONS
+                    WHERE UPPER($COL_TX_TYPE) = 'EXPENSE' AND $COL_TX_DATE LIKE ? || '%'
+                    GROUP BY $COL_TX_CATEGORY
+                """.trimIndent()
+                val cursor = db.rawQuery(sql, arrayOf(periodPrefix))
+                cursor.use { c ->
+                    while (c.moveToNext()) {
+                        val cat = c.getString(c.getColumnIndexOrThrow("category")) ?: ""
+                        val spent = c.getDouble(c.getColumnIndexOrThrow("spent"))
+                        list.add(CategorySpentSummary(category = cat, spent = spent))
+                    }
+                }
+                list
+            }
+
+        override suspend fun getCategorySpentForPeriod(category: String, periodPrefix: String): Double =
+            withContext(Dispatchers.IO) {
+                val db = readableDatabase
+                val sql = """
+                    SELECT COALESCE(SUM($COL_TX_AMOUNT), 0.0)
+                    FROM $TABLE_TRANSACTIONS
+                    WHERE UPPER($COL_TX_TYPE) = 'EXPENSE'
+                      AND TRIM(LOWER($COL_TX_CATEGORY)) = TRIM(LOWER(?))
+                      AND $COL_TX_DATE LIKE ? || '%'
+                """.trimIndent()
+                val cursor = db.rawQuery(sql, arrayOf(category, periodPrefix))
+                cursor.use { c ->
+                    if (c.moveToFirst()) c.getDouble(0) else 0.0
+                }
+            }
+
+        override suspend fun getSpentForCategoryAndPeriod(category: String, periodPrefix: String): Double {
+            return getCategorySpentForPeriod(category, periodPrefix)
         }
 
         override suspend fun insertTransaction(transaction: TransactionEntity): Long = withContext(Dispatchers.IO) {
