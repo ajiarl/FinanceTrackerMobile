@@ -852,4 +852,155 @@ class AppDatabaseRollbackRobolectricTest {
             insightState.aiInsightText!!.contains("Rp")
         )
     }
+
+    @Test
+    fun testAiInsightPeriodAwareBudgetProgressAndMultiMonthHandling() = runBlocking {
+        // Bersihkan data lama agar state deterministik
+        val existingTxs = repository.getAllTransactions().first()
+        for (tx in existingTxs) {
+            repository.deleteTransaction(tx.id)
+        }
+        val existingBudgets = appDb.budgetDao.getAllBudgets().first()
+        for (b in existingBudgets) {
+            appDb.budgetDao.deleteBudget(b.id)
+        }
+
+        val accounts = repository.getAllAccounts().first()
+        val accountId = if (accounts.isNotEmpty()) accounts[0].id else {
+            appDb.accountDao.insertAccount(
+                AccountEntity(
+                    name = "BCA Utama",
+                    type = "BANK",
+                    balance = 10_000_000.0
+                )
+            )
+        }
+
+        // 1. Setup Anggaran Bulanan
+        // September (2026-09): Limit Rp 1.000.000
+        appDb.budgetDao.insertBudget(
+            BudgetEntity(
+                category = "Makanan",
+                name = "Makanan September",
+                limitAmount = 1_000_000.0,
+                period = "2026-09"
+            )
+        )
+
+        // Oktober (2026-10): Limit Rp 1.000.000
+        appDb.budgetDao.insertBudget(
+            BudgetEntity(
+                category = "Makanan",
+                name = "Makanan Oktober",
+                limitAmount = 1_000_000.0,
+                period = "2026-10"
+            )
+        )
+
+        // 2. Setup Transaksi
+        // September: Pemasukan 3.000.000, Pengeluaran Makanan 300.000 (30% -> AMAN / SAFE)
+        repository.insertTransaction(
+            TransactionEntity(
+                title = "Gaji September",
+                amount = 3_000_000.0,
+                type = "INCOME",
+                category = "Gaji",
+                date = "2026-09-05",
+                accountId = accountId
+            )
+        )
+        repository.insertTransaction(
+            TransactionEntity(
+                title = "Makan Siang September",
+                amount = 300_000.0,
+                type = "EXPENSE",
+                category = "Makanan",
+                date = "2026-09-10",
+                accountId = accountId
+            )
+        )
+
+        // Oktober: Pemasukan 3.000.000, Pengeluaran Makanan 1.500.000 (150% -> JEBOL / OVER)
+        repository.insertTransaction(
+            TransactionEntity(
+                title = "Gaji Oktober",
+                amount = 3_000_000.0,
+                type = "INCOME",
+                category = "Gaji",
+                date = "2026-10-05",
+                accountId = accountId
+            )
+        )
+        repository.insertTransaction(
+            TransactionEntity(
+                title = "Makan Mewah Oktober",
+                amount = 1_500_000.0,
+                type = "EXPENSE",
+                category = "Makanan",
+                date = "2026-10-10",
+                accountId = accountId
+            )
+        )
+
+        // 3. Verifikasi Budget Progress langsung dari Repository
+        val sepProgress = repository.getBudgetProgress("2026-09").first()
+        assertEquals(1, sepProgress.size)
+        assertEquals(300_000.0, sepProgress[0].spentAmount, 0.001)
+        assertEquals(30, sepProgress[0].percentage)
+        assertFalse(sepProgress[0].isOver)
+
+        val octProgress = repository.getBudgetProgress("2026-10").first()
+        assertEquals(1, octProgress.size)
+        assertEquals(1_500_000.0, octProgress[0].spentAmount, 0.001)
+        assertEquals(150, octProgress[0].percentage)
+        assertTrue(octProgress[0].isOver)
+
+        // 4. Inisialisasi ViewModel dengan fixedClock (2026-10-15)
+        val viewModel = FinanceViewModel(
+            repository = repository,
+            scopeOverride = CoroutineScope(Dispatchers.Unconfined),
+            clock = fixedClock
+        )
+
+        // 5. Kasus A: Minta AI Insight untuk Periode September (LAST_MONTH)
+        viewModel.setReportsPeriodPreset("LAST_MONTH")
+        viewModel.fetchAiInsight()
+
+        val sepInsightState = viewModel.uiState.filter { it.aiInsightText != null }.first()
+        val sepInsight = sepInsightState.aiInsightText!!
+        // Insight September TIDAK BOLEH mengklaim anggaran Makanan jebol
+        assertFalse(
+            "AI Insight September tidak boleh mengklaim anggaran jebol karena realisasi hanya 30%",
+            sepInsight.contains("jebol") || sepInsight.contains("150%")
+        )
+
+        // 6. Kasus B: Minta AI Insight untuk Periode Oktober (THIS_MONTH)
+        viewModel.setReportsPeriodPreset("THIS_MONTH")
+        viewModel.fetchAiInsight()
+
+        val octInsightState = viewModel.uiState.filter { it.aiInsightText != null && it.aiInsightText != sepInsight }.first()
+        val octInsight = octInsightState.aiInsightText!!
+        // Insight Oktober WAJIB mendeteksi anggaran Makanan jebol
+        assertTrue(
+            "AI Insight Oktober wajib mendeteksi anggaran Makanan jebol nyentuh 150%",
+            octInsight.contains("jebol") && octInsight.contains("Makanan")
+        )
+
+        // 7. Kasus C: Minta AI Insight untuk Periode Multi-Bulan (LAST_3_MONTHS)
+        viewModel.setReportsPeriodPreset("LAST_3_MONTHS")
+        viewModel.fetchAiInsight()
+
+        val multiInsightState = viewModel.uiState.filter { it.aiInsightText != null && it.aiInsightText != octInsight }.first()
+        val multiInsight = multiInsightState.aiInsightText!!
+        // AI Insight untuk multi-bulan TIDAK BOLEH mengklaim anggaran jebol ataupun aman,
+        // melainkan wajib menyatakan evaluasi batas anggaran bulanan tidak dihitung
+        assertTrue(
+            "AI Insight rentang multi-bulan wajib menyatakan evaluasi batas anggaran bulanan tidak dihitung",
+            multiInsight.contains("evaluasi batas anggaran bulanan tidak dihitung untuk rentang multi-bulan")
+        )
+        assertFalse(
+            "AI Insight multi-bulan dilarang mengklaim anggaran jebol berantakan",
+            multiInsight.contains("Anggaran kamu jebol berantakan")
+        )
+    }
 }

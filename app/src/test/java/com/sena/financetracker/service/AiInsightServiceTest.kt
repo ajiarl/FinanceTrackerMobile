@@ -661,4 +661,78 @@ class AiInsightServiceTest {
         assertTrue("Insight harus mengutip transaksi bensin", insight.contains("Isi Bensin Pertamax"))
         assertTrue("Insight harus memuat sindiran transportasi/bensin/mobilitas", insight.contains("bensin") || insight.contains("transportasi") || insight.contains("mobilitas"))
     }
+
+    @Test
+    fun buildUserPrompt_whenMultiMonth_informsBudgetEvaluationNotApplicable() {
+        val prompt = AiInsightService.buildUserPrompt(
+            totalNetWorth = 5_000_000.0,
+            accounts = listOf(AccountEntity(id = 1, name = "BCA", type = "BANK", balance = 5_000_000.0)),
+            overBudgets = emptyList(),
+            criticalBudgets = emptyList(),
+            totalIncome = 10_000_000.0,
+            totalExpense = 4_000_000.0,
+            topCategories = listOf("Makanan" to 2_000_000.0),
+            txCount = 10,
+            periodTitle = "3 Bulan Terakhir",
+            isMultiMonth = true
+        )
+
+        assertTrue(
+            "Prompt pilar anggaran harus menjelaskan evaluasi batas anggaran tidak berlaku untuk rentang multi-bulan",
+            prompt.contains("Evaluasi batas anggaran bulanan tidak dihitung pada rentang multi-bulan atau semua waktu")
+        )
+        assertFalse(
+            "Prompt dilarang mengklaim aman terkendali saat rentang multi-bulan",
+            prompt.contains("Aman terkendali (tidak ada anggaran jebol atau kritis)")
+        )
+    }
+
+    @Test
+    fun generateLocalFallbackInsight_whenMultiMonth_includesMultiMonthNotice() {
+        val insight = AiInsightService.generateLocalFallbackInsight(
+            totalNetWorth = 10_000_000.0,
+            accounts = listOf(AccountEntity(id = 1, name = "BCA", type = "BANK", balance = 10_000_000.0)),
+            overBudgets = emptyList(),
+            criticalBudgets = emptyList(),
+            totalIncome = 15_000_000.0,
+            totalExpense = 3_000_000.0,
+            topCategories = listOf("Makanan" to 1_500_000.0),
+            periodTitle = "3 Bulan Terakhir",
+            isMultiMonth = true
+        )
+
+        assertTrue(
+            "Insight fallback multi-bulan harus memuat catatan evaluasi batas anggaran tidak dihitung",
+            insight.contains("evaluasi batas anggaran bulanan tidak dihitung untuk rentang multi-bulan")
+        )
+        assertFalse(
+            "Insight dilarang mengklaim anggaran jebol berantakan",
+            insight.contains("Anggaran kamu jebol berantakan")
+        )
+    }
+
+    @Test
+    fun getFinancialInsight_whenMultiMonth_passesMultiMonthNoticeToFallback() = runBlocking {
+        val accounts = listOf(
+            AccountEntity(id = 1, name = "BCA", type = "BANK", balance = 5_000_000.0)
+        )
+        val txs = listOf(
+            TransactionEntity(id = 1, title = "Makan Siang", amount = 50_000.0, type = "EXPENSE", category = "Makanan", date = "2026-10-01", accountId = 1)
+        )
+
+        val result = AiInsightService.getFinancialInsight(
+            accounts = accounts,
+            budgets = emptyList(),
+            transactions = txs,
+            periodTitle = "Semua Waktu",
+            apiKey = "",
+            isMultiMonth = true
+        )
+
+        assertNotNull(result)
+        assertTrue(
+            "Hasil insight multi-bulan harus mengikutsertakan catatan evaluasi batas anggaran",
+            result.contains("evaluasi batas anggaran bulanan tidak dihitung untuk rentang multi-bulan")
+        )
+    }
 }

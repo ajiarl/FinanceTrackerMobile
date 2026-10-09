@@ -658,6 +658,12 @@ class FinanceViewModel(
      * untuk rentang transaksi tertentu atau transaksi periode yang sedang aktif.
      * Menggunakan penyaringan SQL SQLite sebelum LIMIT 100 dan menyertakan ringkasan
      * agregasi periode lengkap dari basis data agar konteks angka tetap utuh dan akurat.
+     * Progres anggaran dievaluasi berdasarkan bulan dari rentang periode yang dipilih (startMonth == endMonth).
+     * Jika periode mencakup multi-bulan atau semua waktu, daftar anggaran dikirim kosong dan evaluasi
+     * batas anggaran bulanan ditandai tidak berlaku untuk mencegah klaim overbudget/safe yang keliru.
+     *
+     * @param startDate Tanggal awal rentang (format "yyyy-MM-dd", opsional).
+     * @param endDate Tanggal akhir rentang (format "yyyy-MM-dd", opsional).
      */
     fun fetchAiInsight(startDate: String? = null, endDate: String? = null) {
         activeScope.launch(coroutineExceptionHandler) {
@@ -688,8 +694,16 @@ class FinanceViewModel(
                 )
 
                 val allAccounts = repository.getAllAccounts().first()
-                val currentPeriodMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date(clock.millis()))
-                val allBudgets = repository.getBudgetProgress(currentPeriodMonth).first()
+
+                val startMonth = resolvedStart?.take(7)
+                val endMonth = resolvedEnd?.take(7)
+
+                val isMultiMonth = startMonth == null || endMonth == null || startMonth != endMonth
+                val periodBudgets = if (startMonth != null && startMonth == endMonth) {
+                    repository.getBudgetProgress(startMonth).first()
+                } else {
+                    emptyList()
+                }
 
                 val periodTitle = if (!startDate.isNullOrBlank() && !endDate.isNullOrBlank()) {
                     "$startDate s/d $endDate"
@@ -710,12 +724,13 @@ class FinanceViewModel(
 
                 val insight = com.sena.financetracker.service.AiInsightService.getFinancialInsight(
                     accounts = allAccounts,
-                    budgets = allBudgets,
+                    budgets = periodBudgets,
                     transactions = targetTransactions,
                     periodTitle = periodTitle,
                     apiKey = currentApiKey,
                     periodSummary = periodSummary,
-                    reportsAnalytics = reportsAnalytics
+                    reportsAnalytics = reportsAnalytics,
+                    isMultiMonth = isMultiMonth
                 )
                 _aiInsightText.value = insight
             } catch (e: Exception) {
